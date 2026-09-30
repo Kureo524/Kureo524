@@ -4,7 +4,7 @@ Game developer. C# and C++ with Unity and Unreal Engine. Builds projects with cl
 
 ## Contributions
 
-![3D Contributions](https://raw.githubusercontent.com/Kureo524/Kureo524/3524cd3/profile-3d-contrib/contrib-3d-minimal.png?v=3)
+![3D Contributions](https://raw.githubusercontent.com/Kureo524/Kureo524/5a922f93e30159d486e948d6054e9602dae5a1d2/profile-3d-contrib/contrib-3d-minimal.png?v=4)
 
 ## Featured Projects
 
