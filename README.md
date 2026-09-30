@@ -22,7 +22,7 @@ Developed in collaboration with Okami404. C#, Unity, data-oriented architecture.
 
 ### [Escave](https://github.com/Kureo524/Escave)
 
-Projet C# — héritage de structure Git collaboratif.
+Collaborative Git structure inheritance project in C#.
 
 ## Contact
 
