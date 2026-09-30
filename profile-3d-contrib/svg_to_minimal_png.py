@@ -31,17 +31,24 @@ NS = '{http://www.w3.org/2000/svg}'
 ET.register_namespace('', 'http://www.w3.org/2000/svg')
 
 # ── fade vertical: bleu en bas, violet en haut ───────────────────────────────
-# Plage Y réelle des faces latérales (depuis groupe parent translate):
-Y_BOT = 825   # bas (bleu)
-Y_TOP = 143   # haut (violet)
+# Palette professionnelle: tons mutés, pas de néon
+# Bleu bas (faibles contributions) → Violet haut (fortes contributions)
+# Contraste suffisant sur fond #08080f
 
-# Couleurs extrêmes
-BLUE_RGB  = (74, 111, 165)    # #4a6fa5 — fond de barre basse
-VIOLET_RGB = (100, 60, 210)  # #643cd2 — fond de barre haute
+# Couleurs extrêmes du fade
+# Bas (bleu professionnel, pas trop lumineux): rgb(44, 62, 90) — #2c3e5a
+# Haut (violet muté, pas néon): rgb(90, 90, 138) — #5a5a8a
+BLUE_RGB  = (44, 62, 90)     # fond bas
+VIOLET_RGB = (90, 90, 138)   # fond haut
+
+# Face du dessus: gris bleu clinique, contient bien sur fond sombre
+TOP_FACE_RGB = (122, 138, 158)  # #7a8a9e
 
 
 def y_to_color(y):
     """Retourne une couleur RGB interpolée entre bleu (bas) et violet (haut)."""
+    Y_BOT = 825   # bas de l'axe Y (bleu)
+    Y_TOP = 143   # haut de l'axe Y (violet)
     if y >= Y_BOT:
         t = 0.0
     elif y <= Y_TOP:
@@ -216,13 +223,13 @@ for elem in root.iter(NS + 'rect'):
         continue
 
     if abs(h_val - 18.0) < 0.01:
-        elem.set('fill', COLOR_MAP['fill-fg'])
+        elem.set('fill', f"rgb({TOP_FACE_RGB[0]},{TOP_FACE_RGB[1]},{TOP_FACE_RGB[2]})")
     else:
         ratio = min(h_val / 30.0, 1.0)
         if ratio > 0.55:
             elem.set('fill', COLOR_MAP['fill-strong'])
         else:
-            elem.set('fill', COLOR_MAP['fill-fg'])
+            elem.set('fill', f"rgb({TOP_FACE_RGB[0]},{TOP_FACE_RGB[1]},{TOP_FACE_RGB[2]})")
 
 # Vérification
 after_assign = list(root.iter(NS + 'rect'))
