@@ -2,6 +2,10 @@
 
 Game developer. C# and C++ with Unity and Unreal Engine. Builds projects with clean architecture and functional results.
 
+## Contributions
+
+![3D Contributions](./profile-3d-contrib/profile-green-animate.svg)
+
 ## Featured Projects
 
 ### PokyLite
