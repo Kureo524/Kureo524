@@ -1,12 +1,25 @@
+#!/usr/bin/env python3
+"""Génère un PNG 3D isométrique minimal du graph de contributions GitHub.
+
+- Parse le SVG de github-profile-3d-contrib, nettoie (supprime texte,
+  animations, radar chart, icônes, lignes pointillées).
+- Remplace les classes CSS par des attributs fill/stroke inline.
+- Assigne une couleur à chaque face:
+    * face du dessus (height=18)       → #a0a8d0 (beige-gris clair)
+    * face latérale basse (height=2.6) → fade bleu→violet selon Y (calculé)
+    * faces de contribution variable   → #a0a8d0 ou rgb(100,60,210) selon intensité
+- Convertit en PNG via rsvg-convert.
+"""
+
 import re
 import sys
 import subprocess
 import xml.etree.ElementTree as ET
 
-INPUT_SVG = sys.argv[1] if len(sys.argv) > 1 else 'profile-blue-violet.svg'
+INPUT_SVG  = sys.argv[1] if len(sys.argv) > 1 else 'profile-blue-violet.svg'
 OUTPUT_PNG = sys.argv[2] if len(sys.argv) > 2 else 'contrib-3d-minimal.png'
 
-# ── palette (doit correspondre à settings.json) ──────────────────────────────
+# ── palette ───────────────────────────────────────────────────────────────────
 COLOR_MAP = {
     'fill-fg':     '#a0a8d0', 'stroke-fg':     '#a0a8d0',
     'fill-bg':     '#08080f', 'stroke-bg':     '#08080f',
@@ -17,21 +30,81 @@ COLOR_MAP = {
 NS = '{http://www.w3.org/2000/svg}'
 ET.register_namespace('', 'http://www.w3.org/2000/svg')
 
-# ── parser l'original ────────────────────────────────────────────────────────
+# ── fade vertical: bleu en bas, violet en haut ───────────────────────────────
+# Plage Y réelle des faces latérales (depuis groupe parent translate):
+Y_BOT = 825   # bas (bleu)
+Y_TOP = 143   # haut (violet)
+
+# Couleurs extrêmes
+BLUE_RGB  = (74, 111, 165)    # #4a6fa5 — fond de barre basse
+VIOLET_RGB = (100, 60, 210)  # #643cd2 — fond de barre haute
+
+
+def y_to_color(y):
+    """Retourne une couleur RGB interpolée entre bleu (bas) et violet (haut)."""
+    if y >= Y_BOT:
+        t = 0.0
+    elif y <= Y_TOP:
+        t = 1.0
+    else:
+        t = (Y_BOT - y) / (Y_BOT - Y_TOP)
+    r = int(BLUE_RGB[0] + (VIOLET_RGB[0] - BLUE_RGB[0]) * t)
+    g = int(BLUE_RGB[1] + (VIOLET_RGB[1] - BLUE_RGB[1]) * t)
+    b = int(BLUE_RGB[2] + (VIOLET_RGB[2] - BLUE_RGB[2]) * t)
+    return f"rgb({r},{g},{b})"
+
+
+def find_parent_group_transform(elem, root):
+    """Trouve le transform du premier <g> parent (contenant un translate)."""
+    # Cherche le parent direct
+    parent = None
+    for p in root.iter():
+        for child in list(p):
+            if child is elem:
+                parent = p
+                break
+        if parent is not None:
+            break
+    # Remonte jusqu'au premier <g> avec transform
+    while parent is not None:
+        if parent.tag == NS + 'g':
+            t = parent.get('transform', '')
+            if t:
+                return t
+        gp = None
+        for g in root.iter():
+            for gc in list(g):
+                if gc is parent:
+                    gp = g
+                    break
+            if gp is not None:
+                break
+        parent = gp
+    return ''
+
+
+def extract_translate_y(transform):
+    """Extrait le Y du translate(x, y) d'une transform SVG."""
+    # Formats possibles: translate(140 154.18) ou translate(140, 154.18) ou translate(140,154.18)
+    m = re.search(r'translate\(\s*(-?\d+\.?\d*)\s*[, ]?\s*(-?\d+\.?\d*)\s*\)', transform)
+    if m:
+        return float(m.group(2))
+    return None
+
+
+# ── 1. Parser ────────────────────────────────────────────────────────────────
 root = ET.fromstring(open(INPUT_SVG).read())
 
-# ── 1. Remplacer les classes CSS par des attributs inline (fill/stroke) ────
+# ── 2. Remplacer les classes CSS ─────────────────────────────────────────────
 def class_to_colors(cls_value):
-    """Retourne (fill_or_None, stroke_or_None) depuis une valeur de class."""
     fill = stroke = None
     for c in cls_value.split():
-        if c not in COLOR_MAP:
-            continue
-        col = COLOR_MAP[c]
-        if 'fill' in c:
-            fill = col
-        else:
-            stroke = col
+        if c in COLOR_MAP:
+            col = COLOR_MAP[c]
+            if 'fill' in c:
+                fill = col
+            else:
+                stroke = col
     return fill, stroke
 
 for elem in root.iter():
@@ -40,60 +113,53 @@ for elem in root.iter():
         continue
     fill_c, stroke_c = class_to_colors(cls)
     del elem.attrib['class']
-    # Ne pas écraser un fill/stroke explicite déjà présent
     if fill_c and 'fill' not in elem.attrib:
         elem.set('fill', fill_c)
     if stroke_c and 'stroke' not in elem.attrib:
         elem.set('stroke', stroke_c)
 
-# Diagnostic : counts avant nettoyage
 all_rects = list(root.iter(NS + 'rect'))
 with_fill_before = sum(1 for r in all_rects if r.get('fill') is not None)
-without_fill_before = len(all_rects) - with_fill_before
-print(f"Rects AVANT: {len(all_rects)} total, {with_fill_before} avec fill, {without_fill_before} sans fill",
+print(f"Rects AVANT: {len(all_rects)} total, {with_fill_before} avec fill",
       file=sys.stderr)
 
-# ── 2. Supprimer le <style> et tous les éléments non-voxels ─────────────────
-def remove_descendants(parent, tag_name):
+# ── 3. Supprimer le <style> et éléments superflus ───────────────────────────
+def remove_by_tag(parent, tag):
     for elem in list(parent):
-        if elem.tag == NS + tag_name:
+        if elem.tag == NS + tag:
             parent.remove(elem)
         else:
-            remove_descendants(elem, tag_name)
+            remove_by_tag(elem, tag)
 
-def remove_if(parent, tag_name, pred):
+def remove_if(parent, tag, pred):
     for elem in list(parent):
-        if elem.tag == NS + tag_name:
+        if elem.tag == NS + tag:
             if pred(elem):
                 parent.remove(elem)
         else:
-            remove_if(elem, tag_name, pred)
+            remove_if(elem, tag, pred)
 
-# Supprimer le style
 for elem in list(root):
     if elem.tag == NS + 'style':
         root.remove(elem)
 
-# Supprimer texte, animations, lignes dash du radar
-remove_descendants(root, 'text')
-remove_descendants(root, 'animate')
-remove_descendants(root, 'animateTransform')
+remove_by_tag(root, 'text')
+remove_by_tag(root, 'animate')
+remove_by_tag(root, 'animateTransform')
 remove_if(root, 'line', lambda e: 'stroke-dasharray' in (e.get('style') or ''))
 
-# Supprimer les groupes spécifiques (radar chart, langs, icons)
-def remove_group_by_transform(parent, target, depth=0):
+def remove_group_by_transform(parent, target):
     for elem in list(parent):
         if elem.tag == NS + 'g' and elem.get('transform') == target:
             parent.remove(elem)
             return True
-        if elem.tag == NS + 'g' and remove_group_by_transform(elem, target, depth+1):
+        if elem.tag == NS + 'g' and remove_group_by_transform(elem, target):
             return True
     return False
 
 for t in ['translate(980, 284.5)', 'translate(40, 520)', 'translate(130, 130)']:
     remove_group_by_transform(root, t)
 
-# Supprimer les groupes d'icônes (translate(x,y), scale(2))
 def remove_icon_groups(parent):
     n = 0
     for elem in list(parent):
@@ -108,28 +174,36 @@ def remove_icon_groups(parent):
 
 remove_icon_groups(root)
 
-# ── 3. Compter rects après nettoyage ────────────────────────────────────────
-all_rects2 = list(root.iter(NS + 'rect'))
-with_fill_after = sum(1 for r in all_rects2 if r.get('fill') is not None)
-print(f"Rects APRÈS nettoyage: {len(all_rects2)} total, {with_fill_after} avec fill",
-      file=sys.stderr)
+final_rects_before = list(root.iter(NS + 'rect'))
+with_fill_before2 = sum(1 for r in final_rects_before if r.get('fill') is not None)
+print(f"Rects APRÈS nettoyage: {len(final_rects_before)} total, "
+      f"{with_fill_before2} avec fill", file=sys.stderr)
 
-# ── Diagnostic des rects sans fill ──────────────────────────────────────────
-no_fill_rects = [r for r in all_rects2 if r.get('fill') is None]
-if no_fill_rects:
-    print(f"\nRects sans fill ({len(no_fill_rects)}):", file=sys.stderr)
-    # Montrer quelques exemples
-    for r in no_fill_rects[:3]:
-        print(f"  attributs: {dict(r.attrib)}", file=sys.stderr)
+# ── 4. Assigner les couleurs ─────────────────────────────────────────────────
+# On fait deux passes:
+#   Pass 1 : pour chaque rect latéral (height=2.6), extraire le Y du parent
+#            groupe et calculer la couleur fade
+#   Pass 2 : pour les autres rects, assigner les couleurs standard
 
-# ── 4. Assigner des couleurs et dégradés aux faces ──────────────────────────
-# Faces du dessus (height=18) → couleur solide
-# Faces latérales (height=2.6) → dégradé bleu→violet (définir plus bas)
-# Faces latérales de hauteur variable (contribution) → couleur solide
+# Pass 1: collecter les Y et assigner les couleurs fade
+lateral_faces = []
+for elem in root.iter(NS + 'rect'):
+    h = elem.get('height')
+    if h and abs(float(h) - 2.6) < 0.01:
+        parent_transform = find_parent_group_transform(elem, root)
+        ty = extract_translate_y(parent_transform)
+        lateral_faces.append((elem, ty))
 
-# On identifie les faces latérales de base (height=2.6) pour leur attribuer
-# le dégradé au lieu d'une couleur. Les autres faces gardent une couleur solide.
+print(f"Faces latérales identifiées: {len(lateral_faces)}", file=sys.stderr)
 
+# Assigner les couleurs fade
+for elem, ty in lateral_faces:
+    if ty is not None:
+        elem.set('fill', y_to_color(ty))
+    else:
+        elem.set('fill', COLOR_MAP['fill-weak'])
+
+# Pass 2: autres rects
 for elem in root.iter(NS + 'rect'):
     if elem.get('fill') is not None:
         continue
@@ -141,10 +215,7 @@ for elem in root.iter(NS + 'rect'):
     except (ValueError, TypeError):
         continue
 
-    if abs(h_val - 2.6) < 0.01:
-        # Face latérale basse (2.6) → dégradé (appliqué au niveau SVG string)
-        elem.set('fill', 'url(#pillar-fade)')
-    elif abs(h_val - 18.0) < 0.01:
+    if abs(h_val - 18.0) < 0.01:
         elem.set('fill', COLOR_MAP['fill-fg'])
     else:
         ratio = min(h_val / 30.0, 1.0)
@@ -155,9 +226,26 @@ for elem in root.iter(NS + 'rect'):
 
 # Vérification
 after_assign = list(root.iter(NS + 'rect'))
-with_fill_final = sum(1 for r in after_assign if r.get('fill') is not None)
-print(f"Rects APRÈS assignation: {with_fill_final}/{len(after_assign)} avec fill",
+with_fill_after = sum(1 for r in after_assign if r.get('fill') is not None)
+print(f"Rects APRÈS assignation: {with_fill_after}/{len(after_assign)} avec fill",
       file=sys.stderr)
+
+# Diagnostic couleurs
+from collections import Counter
+fill_colors = Counter(r.get('fill') for r in after_assign)
+print(f"\nPalette utilisée:", file=sys.stderr)
+for color, count in fill_colors.most_common():
+    print(f"  {color!r}: {count}", file=sys.stderr)
+
+# Vérifier spécifiquement le fade
+fade_colors = [c for c in fill_colors.keys()
+               if c.startswith('rgb(') and 'fill-weak' not in c
+               and 'fill-strong' not in c and 'fill-fg' not in c]
+print(f"\nFaces avec couleur fade (calculée): {sum(fill_colors[c] for c in fade_colors)}",
+      file=sys.stderr)
+if fade_colors:
+    print(f"  Exemple fade: {fade_colors[0]!r} ({fill_colors[fade_colors[0]]} faces)",
+          file=sys.stderr)
 
 # ── 5. Exporter ─────────────────────────────────────────────────────────────
 svg_out = ET.tostring(root, encoding='unicode').strip()
@@ -169,40 +257,13 @@ svg_out = '<?xml version="1.0" encoding="UTF-8"?>\n' + svg_out + '\n'
 svg_out = re.sub(r'\s+', ' ', svg_out)
 svg_out = re.sub(r'> <', '><', svg_out)
 
-# ── Injecter le <defs> avec le dégradé ──────────────────────────────────────
-defs_block = (
-    '<defs>'
-    '<linearGradient id="pillar-fade" x1="0" y1="1" x2="0" y2="0">'
-    '<stop offset="0%" stop-color="#4a6fa5"/>'
-    '<stop offset="100%" stop-color="#643cd2"/>'
-    '</linearGradient>'
-    '</defs>'
-)
-svg_out = re.sub(r'(<svg[^>]*>)', r'\1' + defs_block, svg_out, count=1)
-
 clean_path = 'profile-cleaned.svg'
-open(clean_path, 'w').write(svg_out)
+with open(clean_path, 'w') as f:
+    f.write(svg_out)
+
 print(f"SVG écrit: {clean_path} ({len(svg_out)} chars)", file=sys.stderr)
 
-# Vérification
-if 'linearGradient' in svg_out and 'pillar-fade' in svg_out:
-    print("✓ Dégradé pillar-fade présent", file=sys.stderr)
-else:
-    print("✗ ERREUR: dégradé manquant!", file=sys.stderr)
-    sys.exit(1)
-
-gradient_count_final = len(re.findall(r'fill="url\(#pillar-fade\)"', svg_out))
-print(f"Rects avec dégradé: {gradient_count_final}", file=sys.stderr)
-
-# Vérification finale dans le fichier
-cleaned = open(clean_path).read()
-sample = re.findall(r'<rect[^>]*fill="[^"]+"', cleaned)
-print(f"Rects avec fill dans le fichier: {len(sample)}/{len(re.findall(r'<rect', cleaned))}",
-      file=sys.stderr)
-if sample:
-    print(f"  Ex: {sample[0][:120]!r}", file=sys.stderr)
-
-# ── 6. Conversion PNG ────────────────────────────────────────────────────────
+# ── 6. Convertir en PNG ─────────────────────────────────────────────────────
 res = subprocess.run(
     ['rsvg-convert', '--width', '1280', '--height', '850',
      clean_path, '-o', OUTPUT_PNG],
@@ -210,6 +271,7 @@ res = subprocess.run(
 )
 if res.returncode != 0:
     print(f"Erreur rsvg-convert: {res.stderr}", file=sys.stderr)
+    print(f"stdout: {res.stdout}", file=sys.stderr)
     sys.exit(1)
 
 import os
