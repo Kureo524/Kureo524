@@ -1,6 +1,8 @@
 name: GitHub-Profile-3D-Contrib
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -49,6 +51,7 @@ def fix_tag(m):
 svg = re.sub(r'<[^>]*class=\"[^\"]+\"[^\>]*>', fix_tag, svg)
 svg = re.sub(r'<style>.*?</style>', '', svg, flags=re.DOTALL)
 open('profile-3d-contrib/profile-green-animate.svg', 'w').write(svg)
+print('CSS removed, fills explicit')
 "
       - name: Commit & Push
         run: |
