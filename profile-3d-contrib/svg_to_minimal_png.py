@@ -122,19 +122,17 @@ if no_fill_rects:
     for r in no_fill_rects[:3]:
         print(f"  attributs: {dict(r.attrib)}", file=sys.stderr)
 
-# ── 4. Assigner des couleurs aux rects du voxel grid sans fill ──────────────
-# Dans le SVG original, les 3 faces d'un voxel ont des classes CSS différentes:
-#   face du dessus  → fill-fg ou fill-strong (selon l'intensité)
-#   face gauche      → fill-weak
-#   face droite      → fill-strong ou fill-fg
-# Sans la classe, on déduit le type de face par la hauteur du rect:
-#   - height ≈ 2.6 (la base)  → face latérale (couleur weak)
-#   - height variante (>2.6)  → hauteur du voxel, face visible → fg ou strong
-#   - height = 18 (pleine taille) → face de dessus complète → fg
+# ── 4. Assigner des couleurs et dégradés aux faces ──────────────────────────
+# Faces du dessus (height=18) → couleur solide
+# Faces latérales (height=2.6) → dégradé bleu→violet (définir plus bas)
+# Faces latérales de hauteur variable (contribution) → couleur solide
+
+# On identifie les faces latérales de base (height=2.6) pour leur attribuer
+# le dégradé au lieu d'une couleur. Les autres faces gardent une couleur solide.
 
 for elem in root.iter(NS + 'rect'):
     if elem.get('fill') is not None:
-        continue          # déjà coloré par remplacement de classe
+        continue
     h = elem.get('height')
     if h is None:
         continue
@@ -144,20 +142,18 @@ for elem in root.iter(NS + 'rect'):
         continue
 
     if abs(h_val - 2.6) < 0.01:
-        # Face latérale (base du voxel) → couleur weak
-        elem.set('fill', COLOR_MAP['fill-weak'])
+        # Face latérale basse (2.6) → dégradé (appliqué au niveau SVG string)
+        elem.set('fill', 'url(#pillar-fade)')
     elif abs(h_val - 18.0) < 0.01:
-        # Face de dessus complète (18 = taille voxel) → couleur fg
         elem.set('fill', COLOR_MAP['fill-fg'])
     else:
-        # Hauteur de contribution variable → proportions fortes si haut
         ratio = min(h_val / 30.0, 1.0)
         if ratio > 0.55:
             elem.set('fill', COLOR_MAP['fill-strong'])
         else:
             elem.set('fill', COLOR_MAP['fill-fg'])
 
-# Vérification post-assignation
+# Vérification
 after_assign = list(root.iter(NS + 'rect'))
 with_fill_final = sum(1 for r in after_assign if r.get('fill') is not None)
 print(f"Rects APRÈS assignation: {with_fill_final}/{len(after_assign)} avec fill",
@@ -173,9 +169,30 @@ svg_out = '<?xml version="1.0" encoding="UTF-8"?>\n' + svg_out + '\n'
 svg_out = re.sub(r'\s+', ' ', svg_out)
 svg_out = re.sub(r'> <', '><', svg_out)
 
+# ── Injecter le <defs> avec le dégradé ──────────────────────────────────────
+defs_block = (
+    '<defs>'
+    '<linearGradient id="pillar-fade" x1="0" y1="1" x2="0" y2="0">'
+    '<stop offset="0%" stop-color="#4a6fa5"/>'
+    '<stop offset="100%" stop-color="#643cd2"/>'
+    '</linearGradient>'
+    '</defs>'
+)
+svg_out = re.sub(r'(<svg[^>]*>)', r'\1' + defs_block, svg_out, count=1)
+
 clean_path = 'profile-cleaned.svg'
 open(clean_path, 'w').write(svg_out)
 print(f"SVG écrit: {clean_path} ({len(svg_out)} chars)", file=sys.stderr)
+
+# Vérification
+if 'linearGradient' in svg_out and 'pillar-fade' in svg_out:
+    print("✓ Dégradé pillar-fade présent", file=sys.stderr)
+else:
+    print("✗ ERREUR: dégradé manquant!", file=sys.stderr)
+    sys.exit(1)
+
+gradient_count_final = len(re.findall(r'fill="url\(#pillar-fade\)"', svg_out))
+print(f"Rects avec dégradé: {gradient_count_final}", file=sys.stderr)
 
 # Vérification finale dans le fichier
 cleaned = open(clean_path).read()
