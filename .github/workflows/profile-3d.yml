@@ -14,45 +14,23 @@ jobs:
     name: generate-github-profile-3d-contrib
     steps:
       - uses: actions/checkout@v5
+
+      # Génère les SVGs via l'action yoshi389111
       - uses: yoshi389111/github-profile-3d-contrib@latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           USERNAME: ${{ github.repository_owner }}
           SETTING_JSON: ./settings.json
-      - name: Remove CSS classes, use explicit fills
-        run: |
-          python3 -c "
-import re
-with open('profile-3d-contrib/profile-green-animate.svg', 'r') as f:
-    svg = f.read()
-COLOR_MAP = {
-    'fill-fg': '#a0a8d0', 'stroke-fg': '#a0a8d0',
-    'fill-bg': '#08080f', 'stroke-bg': '#08080f',
-    'fill-weak': '#3a3a6a', 'stroke-weak': '#3a3a6a',
-    'fill-strong': 'rgb(100, 60, 210)', 'stroke-strong': 'rgb(100, 60, 210)',
-}
-def fix_tag(m):
-    tag = m.group(0)
-    cls = re.search(r'class=\"([^\"]+)\"', tag)
-    if not cls: return tag
-    classes = cls.group(1).split()
-    fill_c = stroke_c = None
-    for c in classes:
-        if c in COLOR_MAP:
-            col = COLOR_MAP[c]
-            if 'fill' in c: fill_c = col
-            elif 'stroke' in c: stroke_c = col
-    tag = re.sub(r' class=\"[^\"]+\"', '', tag)
-    if fill_c and 'fill=' not in tag:
-        tag = tag.replace('>', f' fill=\"{fill_c}\">', 1)
-    if stroke_c and 'stroke=' not in tag and 'stroke:none' not in tag:
-        tag = tag.replace('>', f' stroke=\"{stroke_c}\">', 1)
-    return tag
-svg = re.sub(r'<[^>]*class=\"[^\"]+\"[^\>]*>', fix_tag, svg)
-svg = re.sub(r'<style>.*?</style>', '', svg, flags=re.DOTALL)
-open('profile-3d-contrib/profile-green-animate.svg', 'w').write(svg)
-print('CSS removed, fills explicit')
-"
+
+      # Installe rsvg-convert (librsvg) pour la conversion SVG→PNG
+      - name: Install rsvg-convert
+        run: sudo apt-get update -qq && sudo apt-get install -qq -y librsvg2-bin
+
+      # Nettoie le SVG 3D isométrique et convertit en PNG minimal
+      - name: Generate minimal 3D contributions PNG
+        run: python3 profile-3d-contrib/svg_to_minimal_png.py profile-3d-contrib/profile-blue-violet.svg profile-3d-contrib/contrib-3d-minimal.png
+
+      # Commit & Push
       - name: Commit & Push
         run: |
           git config user.name github-actions
