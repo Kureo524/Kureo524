@@ -1,134 +1,199 @@
 import re
 import sys
-
-# Ce script nettoie le SVG 3D isométrique et le convertit en PNG minimal.
-# Usage: python3 svg_to_minimal_png.py <input.svg> <output.png>
+import subprocess
+import xml.etree.ElementTree as ET
 
 INPUT_SVG = sys.argv[1] if len(sys.argv) > 1 else 'profile-blue-violet.svg'
 OUTPUT_PNG = sys.argv[2] if len(sys.argv) > 2 else 'contrib-3d-minimal.png'
 
-# palette couleurs (doit correspondre à settings.json)
+# ── palette (doit correspondre à settings.json) ──────────────────────────────
 COLOR_MAP = {
-    'fill-fg': '#a0a8d0', 'stroke-fg': '#a0a8d0',
-    'fill-bg': '#08080f', 'stroke-bg': '#08080f',
-    'fill-weak': '#3a3a6a', 'stroke-weak': '#3a3a6a',
-    'fill-strong': 'rgb(100, 60, 210)', 'stroke-strong': 'rgb(100, 60, 210)',
+    'fill-fg':     '#a0a8d0', 'stroke-fg':     '#a0a8d0',
+    'fill-bg':     '#08080f', 'stroke-bg':     '#08080f',
+    'fill-weak':   '#3a3a6a', 'stroke-weak':   '#3a3a6a',
+    'fill-strong': 'rgb(100,60,210)', 'stroke-strong': 'rgb(100,60,210)',
 }
 
-with open(INPUT_SVG, 'r') as f:
-    svg = f.read()
-
-# 1. Remplacer les classes CSS par des attributs inline explicites
-def fix_tag(m):
-    tag = m.group(0)
-    cls_match = re.search(r'class="([^"]+)"', tag)
-    if not cls_match:
-        return tag
-    classes = cls_match.group(1).split()
-    fill_c = stroke_c = None
-    for c in classes:
-        if c in COLOR_MAP:
-            col = COLOR_MAP[c]
-            if 'fill' in c:
-                fill_c = col
-            elif 'stroke' in c:
-                stroke_c = col
-    prefix = tag[:cls_match.start()]
-    remainder = tag[cls_match.end():]
-    new_tag = prefix + remainder
-    if fill_c and 'fill=' not in new_tag:
-        new_tag = new_tag.replace('>', f' fill="{fill_c}">', 1)
-    if stroke_c and 'stroke=' not in new_tag and 'stroke:none' not in new_tag:
-        new_tag = new_tag.replace('>', f' stroke="{stroke_c}">', 1)
-    return new_tag
-
-svg = re.sub(r'<[^>]*class="[^"]+"[^>]*>', fix_tag, svg)
-
-# 2. Parser et nettoyer avec ElementTree
-import xml.etree.ElementTree as ET
+NS = '{http://www.w3.org/2000/svg}'
 ET.register_namespace('', 'http://www.w3.org/2000/svg')
-ns = '{http://www.w3.org/2000/svg}'
 
-root = ET.fromstring(svg)
+# ── parser l'original ────────────────────────────────────────────────────────
+root = ET.fromstring(open(INPUT_SVG).read())
 
-def remove_by_tag(parent, tag_name):
+# ── 1. Remplacer les classes CSS par des attributs inline (fill/stroke) ────
+def class_to_colors(cls_value):
+    """Retourne (fill_or_None, stroke_or_None) depuis une valeur de class."""
+    fill = stroke = None
+    for c in cls_value.split():
+        if c not in COLOR_MAP:
+            continue
+        col = COLOR_MAP[c]
+        if 'fill' in c:
+            fill = col
+        else:
+            stroke = col
+    return fill, stroke
+
+for elem in root.iter():
+    cls = elem.get('class')
+    if cls is None:
+        continue
+    fill_c, stroke_c = class_to_colors(cls)
+    del elem.attrib['class']
+    # Ne pas écraser un fill/stroke explicite déjà présent
+    if fill_c and 'fill' not in elem.attrib:
+        elem.set('fill', fill_c)
+    if stroke_c and 'stroke' not in elem.attrib:
+        elem.set('stroke', stroke_c)
+
+# Diagnostic : counts avant nettoyage
+all_rects = list(root.iter(NS + 'rect'))
+with_fill_before = sum(1 for r in all_rects if r.get('fill') is not None)
+without_fill_before = len(all_rects) - with_fill_before
+print(f"Rects AVANT: {len(all_rects)} total, {with_fill_before} avec fill, {without_fill_before} sans fill",
+      file=sys.stderr)
+
+# ── 2. Supprimer le <style> et tous les éléments non-voxels ─────────────────
+def remove_descendants(parent, tag_name):
     for elem in list(parent):
-        if elem.tag == ns + tag_name:
+        if elem.tag == NS + tag_name:
             parent.remove(elem)
         else:
-            remove_by_tag(elem, tag_name)
+            remove_descendants(elem, tag_name)
 
-def remove_by_predicate(parent, tag_name, pred):
+def remove_if(parent, tag_name, pred):
     for elem in list(parent):
-        if elem.tag == ns + tag_name:
+        if elem.tag == NS + tag_name:
             if pred(elem):
                 parent.remove(elem)
         else:
-            remove_by_predicate(elem, tag_name, pred)
-
-def remove_group_by_transform(parent, transform_value):
-    for elem in list(parent):
-        if elem.tag == ns + 'g' and elem.get('transform') == transform_value:
-            parent.remove(elem)
-            return True
-        if elem.tag == ns + 'g':
-            if remove_group_by_transform(elem, transform_value):
-                return True
-    return False
-
-def remove_icon_groups(parent):
-    removed = 0
-    for elem in list(parent):
-        if elem.tag == ns + 'g':
-            t = elem.get('transform', '')
-            if re.match(r'translate\(\d+, \d+\), scale\(2\)', t):
-                parent.remove(elem)
-                removed += 1
-            else:
-                removed += remove_icon_groups(elem)
-    return removed
+            remove_if(elem, tag_name, pred)
 
 # Supprimer le style
 for elem in list(root):
-    if elem.tag == ns + 'style':
+    if elem.tag == NS + 'style':
         root.remove(elem)
 
-# Supprimer le texte, les animations, les lignes dash du radar, les groupes specifiques
-remove_by_tag(root, 'text')
-remove_by_tag(root, 'animate')
-remove_by_tag(root, 'animateTransform')
-remove_by_predicate(root, 'line', lambda e: 'stroke-dasharray' in (e.get('style') or ''))
+# Supprimer texte, animations, lignes dash du radar
+remove_descendants(root, 'text')
+remove_descendants(root, 'animate')
+remove_descendants(root, 'animateTransform')
+remove_if(root, 'line', lambda e: 'stroke-dasharray' in (e.get('style') or ''))
+
+# Supprimer les groupes spécifiques (radar chart, langs, icons)
+def remove_group_by_transform(parent, target, depth=0):
+    for elem in list(parent):
+        if elem.tag == NS + 'g' and elem.get('transform') == target:
+            parent.remove(elem)
+            return True
+        if elem.tag == NS + 'g' and remove_group_by_transform(elem, target, depth+1):
+            return True
+    return False
 
 for t in ['translate(980, 284.5)', 'translate(40, 520)', 'translate(130, 130)']:
     remove_group_by_transform(root, t)
 
+# Supprimer les groupes d'icônes (translate(x,y), scale(2))
+def remove_icon_groups(parent):
+    n = 0
+    for elem in list(parent):
+        if elem.tag == NS + 'g':
+            t = elem.get('transform', '')
+            if re.match(r'translate\(\d+,\s*\d+\),\s*scale\(2\)', t):
+                parent.remove(elem)
+                n += 1
+            else:
+                n += remove_icon_groups(elem)
+    return n
+
 remove_icon_groups(root)
 
-# Re-serialiser
-output = ET.tostring(root, encoding='unicode').strip()
-if not output.startswith('<svg'):
-    idx = output.find('<svg')
-    if idx >= 0:
-        output = output[idx:]
+# ── 3. Compter rects après nettoyage ────────────────────────────────────────
+all_rects2 = list(root.iter(NS + 'rect'))
+with_fill_after = sum(1 for r in all_rects2 if r.get('fill') is not None)
+print(f"Rects APRÈS nettoyage: {len(all_rects2)} total, {with_fill_after} avec fill",
+      file=sys.stderr)
 
-output = '<?xml version="1.0" encoding="UTF-8"?>\n' + output + '\n'
-output = re.sub(r'\s+', ' ', output)
-output = re.sub(r'> <', '><', output)
+# ── Diagnostic des rects sans fill ──────────────────────────────────────────
+no_fill_rects = [r for r in all_rects2 if r.get('fill') is None]
+if no_fill_rects:
+    print(f"\nRects sans fill ({len(no_fill_rects)}):", file=sys.stderr)
+    # Montrer quelques exemples
+    for r in no_fill_rects[:3]:
+        print(f"  attributs: {dict(r.attrib)}", file=sys.stderr)
 
-svg_clean = 'profile-cleaned.svg'
-with open(svg_clean, 'w') as f:
-    f.write(output)
+# ── 4. Assigner des couleurs aux rects du voxel grid sans fill ──────────────
+# Dans le SVG original, les 3 faces d'un voxel ont des classes CSS différentes:
+#   face du dessus  → fill-fg ou fill-strong (selon l'intensité)
+#   face gauche      → fill-weak
+#   face droite      → fill-strong ou fill-fg
+# Sans la classe, on déduit le type de face par la hauteur du rect:
+#   - height ≈ 2.6 (la base)  → face latérale (couleur weak)
+#   - height variante (>2.6)  → hauteur du voxel, face visible → fg ou strong
+#   - height = 18 (pleine taille) → face de dessus complète → fg
 
-print(f'SVG nettoye: {len(output)} chars -> {svg_clean}', file=sys.stderr)
+for elem in root.iter(NS + 'rect'):
+    if elem.get('fill') is not None:
+        continue          # déjà coloré par remplacement de classe
+    h = elem.get('height')
+    if h is None:
+        continue
+    try:
+        h_val = float(h)
+    except (ValueError, TypeError):
+        continue
 
-# 3. Convertir en PNG via rsvg-convert (la commande systeme)
-import subprocess
-result = subprocess.run(
-    ['rsvg-convert', '--width', '1280', '--height', '850', svg_clean, '-o', OUTPUT_PNG],
+    if abs(h_val - 2.6) < 0.01:
+        # Face latérale (base du voxel) → couleur weak
+        elem.set('fill', COLOR_MAP['fill-weak'])
+    elif abs(h_val - 18.0) < 0.01:
+        # Face de dessus complète (18 = taille voxel) → couleur fg
+        elem.set('fill', COLOR_MAP['fill-fg'])
+    else:
+        # Hauteur de contribution variable → proportions fortes si haut
+        ratio = min(h_val / 30.0, 1.0)
+        if ratio > 0.55:
+            elem.set('fill', COLOR_MAP['fill-strong'])
+        else:
+            elem.set('fill', COLOR_MAP['fill-fg'])
+
+# Vérification post-assignation
+after_assign = list(root.iter(NS + 'rect'))
+with_fill_final = sum(1 for r in after_assign if r.get('fill') is not None)
+print(f"Rects APRÈS assignation: {with_fill_final}/{len(after_assign)} avec fill",
+      file=sys.stderr)
+
+# ── 5. Exporter ─────────────────────────────────────────────────────────────
+svg_out = ET.tostring(root, encoding='unicode').strip()
+if not svg_out.startswith('<svg'):
+    i = svg_out.find('<svg')
+    if i >= 0:
+        svg_out = svg_out[i:]
+svg_out = '<?xml version="1.0" encoding="UTF-8"?>\n' + svg_out + '\n'
+svg_out = re.sub(r'\s+', ' ', svg_out)
+svg_out = re.sub(r'> <', '><', svg_out)
+
+clean_path = 'profile-cleaned.svg'
+open(clean_path, 'w').write(svg_out)
+print(f"SVG écrit: {clean_path} ({len(svg_out)} chars)", file=sys.stderr)
+
+# Vérification finale dans le fichier
+cleaned = open(clean_path).read()
+sample = re.findall(r'<rect[^>]*fill="[^"]+"', cleaned)
+print(f"Rects avec fill dans le fichier: {len(sample)}/{len(re.findall(r'<rect', cleaned))}",
+      file=sys.stderr)
+if sample:
+    print(f"  Ex: {sample[0][:120]!r}", file=sys.stderr)
+
+# ── 6. Conversion PNG ────────────────────────────────────────────────────────
+res = subprocess.run(
+    ['rsvg-convert', '--width', '1280', '--height', '850',
+     clean_path, '-o', OUTPUT_PNG],
     capture_output=True, text=True
 )
-if result.returncode != 0:
-    print(f'Erreur rsvg-convert: {result.stderr}', file=sys.stderr)
+if res.returncode != 0:
+    print(f"Erreur rsvg-convert: {res.stderr}", file=sys.stderr)
     sys.exit(1)
 
-print(f'PNG genere: {OUTPUT_PNG}')
+import os
+print(f"PNG: {OUTPUT_PNG} ({os.path.getsize(OUTPUT_PNG)} bytes)")
