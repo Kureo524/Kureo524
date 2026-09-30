@@ -1,21 +1,19 @@
 {
   "type": "custom",
   "fileName": "profile-blue-violet.svg",
-  "backgroundColor": "#0a0a1a",
-  "foregroundColor": "#c8d0ff",
-  "strongColor": "rgb(120, 80, 255)",
-  "weakColor": "#4a5580",
-  "radarColor": "rgb(120, 80, 255)",
-  "growingAnimation": false,
-  "saturation": "40%",
+  "backgroundColor": "#08080f",
+  "foregroundColor": "#a0a8d0",
+  "strongColor": "rgb(100, 60, 210)",
+  "weakColor": "#3a3a6a",
+  "growingAnimation": true,
+  "saturation": "55%",
   "contribLightness": [
-    "15%",
+    "18%",
     "25%",
-    "35%",
-    "50%",
-    "75%"
+    "32%",
+    "42%",
+    "58%"
   ],
-  "duration": "10s",
-  "hueRatio": -5,
-  "opacity": 0.85
+  "duration": "12s",
+  "hueRatio": -8
 }
