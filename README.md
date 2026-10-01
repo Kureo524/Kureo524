@@ -1,24 +1,24 @@
 # Kilian Monnier
 
-Game developer. C# and C++ with Unity and Unreal Engine. Builds projects with clean architecture and functional results.
+Game developer specializing in C# and C++ with Unity and Unreal Engine. Focused on clean architecture, functional gameplay systems, and multiplayer infrastructure.
+
+## Contributions
+
+![3D Contributions](https://raw.githubusercontent.com/Kureo524/Kureo524/main/profile-3d-contrib/contrib-3d-deep.png)
 
 ## Featured Projects
 
 ### [PokyLite](https://github.com/Kureo524/PokyLite)
 
-Multiplayer Pokémon-style game (Gen 1-5) in Unity 6 / URP / FishNet (Steam). Server-authoritative architecture with a pure C# battle engine, unit tests, and persistence through an ASP.NET Core + PostgreSQL API.
+Multiplayer Pokemon-style game (Gen 1-5) built in Unity 6 / URP / FishNet for Steam. Features a server-authoritative architecture with a pure C# battle engine, comprehensive unit tests, and persistence through an ASP.NET Core + PostgreSQL API.
 
 ### [Tycoon](https://github.com/Kureo524/Tycoon)
 
-Unity project focused on simulation and management mechanics.
+Unity project focused on simulation and management mechanics. Explores complex state systems and data-driven gameplay design.
 
 ### [Ascensio](https://github.com/Okami404/Ascensio)
 
-Developed in collaboration with Okami404. C#, Unity, data-oriented architecture.
-
-### [Escave](https://github.com/Kureo524/Escave)
-
-Collaborative Git structure inheritance project in C#.
+Collaborative project developed with Okami404. C# and Unity with a data-oriented architecture approach.
 
 ## Contact
 
