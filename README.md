@@ -2,10 +2,6 @@
 
 Game developer specializing in C# and C++ with Unity and Unreal Engine. Focused on clean architecture, functional gameplay systems, and multiplayer infrastructure.
 
-## Contributions
-
-![Contributions](https://raw.githubusercontent.com/Kureo524/Kureo524/main/profile-3d-contrib/contrib-github-style.png)
-
 ## Featured Projects
 
 ### [PokyLite](https://github.com/Kureo524/PokyLite)
