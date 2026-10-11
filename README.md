@@ -1,6 +1,6 @@
 # Kilian Monnier
 
-Game developer specializing in C# and C++ with Unity and Unreal Engine. Third-year game programming student at La Horde (Bordeaux), focused on clean architecture, functional gameplay systems, and multiplayer infrastructure.
+Game developer specializing in C# and C++ with Unity and Unreal Engine, based in Bordeaux. Focused on clean architecture, functional gameplay systems, and multiplayer infrastructure.
 
 **[Download my CV (PDF)](https://raw.githubusercontent.com/Kureo524/Kureo524/main/CV-Monnier-Kilian.pdf)**
 
@@ -20,7 +20,7 @@ A puzzle-platformer where the level itself stretches and compresses. Built for t
 
 ### Punk Pulse — rhythm action game
 
-School project in Unity. Implemented the melody system and its UI, the Melody Codex (the in-game registry of melodies), melody fusion, and the hotbar.
+Unity project. Implemented the melody system and its UI, the Melody Codex (the in-game registry of melodies), melody fusion, and the hotbar.
 
 [Play on itch.io](https://lawice2.itch.io/punk-pulse) · [Source](https://github.com/Gabriel-Etienne/Instance2---2026) · Unity / C#
 
