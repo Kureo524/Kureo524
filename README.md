@@ -2,6 +2,8 @@
 
 Game developer specializing in C# and C++ with Unity and Unreal Engine. Second-year game programming student at La Horde (Bordeaux), focused on clean architecture, functional gameplay systems, and multiplayer infrastructure.
 
+**[Download my CV (PDF)](https://raw.githubusercontent.com/Kureo524/Kureo524/main/CV-Monnier-Kilian.pdf)**
+
 ## Featured Projects
 
 ### Escave — 2D precision platformer
