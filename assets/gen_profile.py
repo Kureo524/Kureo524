@@ -1,21 +1,31 @@
-"""Generates the profile README visuals in the "Verre d'encre" art direction.
-Fonts are embedded as subset WOFF so the SVGs render the same everywhere.
-Usage, from the repository root (requires fontTools):
+"""Generates the profile README in the "Verre d'encre" art direction.
+
+The whole profile is ONE scene (a night sky with glass panels) drawn in global coordinates, then cut into
+slices: each slice is an SVG whose viewBox is a window on that scene. The README stacks the slices as
+inline images aligned to the top with no whitespace between them, so they join seamlessly while each one can still carry its own link (cards, buttons).
+Fonts are embedded as subset WOFF so the slices render the same everywhere.
+
+Usage, from the repository root (requires fontTools); rewrites the block between the profile markers
+in README.md:
     python3 assets/gen_profile.py"""
-import base64, io, math, os, random
+import base64, io, os, random
 from fontTools.ttLib import TTFont
 from fontTools import subset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FONTS_DIR, OUT = os.path.join(HERE, "fonts"), HERE
+FONTS_DIR, OUT = os.path.join(HERE, "fonts"), os.path.join(HERE, "profile")
 
 # ---------------- Design tokens ----------------
 BG = "#0c0c12"
 TEXT, TEXT2, TEXT3 = "#e8eefa", "#a3a6b6", "#8a8a9c"
 ACCENT, ACCENT_TEXT, LAVENDER, SUCCESS, WARNING = "#8aa8e0", "#a9c4f0", "#a597c0", "#9ebd85", "#e7b52f"
-SURFACE = "rgba(22,22,30,0.62)"
+GLASS = "rgba(30,30,40,0.42)"          # light glass: structure
+SURFACE = "rgba(22,22,30,0.62)"        # full glass: content
+RAISED = "rgba(232,238,250,0.06)"
 BORDER = "rgba(232,238,250,0.09)"
+BORDER_STRONG = "rgba(232,238,250,0.17)"
 RIM = "rgba(232,238,250,0.24)"
+ACCENT_TINT = "rgba(138,168,224,0.50)"
 STATUS_BG, STATUS_BORDER, STATUS_RIM = "rgba(16,20,32,0.55)", "rgba(138,168,224,0.28)", "rgba(138,168,224,0.45)"
 
 FONT_FILES = {
@@ -37,8 +47,7 @@ def font(key):
 
 def width(text, key, size):
     cmap, hmtx, upm = font(key)
-    w = sum(hmtx[cmap[ord(c)]][0] if ord(c) in cmap else upm * 0.5 for c in text)
-    return w * size / upm
+    return sum(hmtx[cmap[ord(c)]][0] if ord(c) in cmap else upm * 0.5 for c in text) * size / upm
 
 
 def wrap(text, key, size, max_w):
@@ -50,17 +59,14 @@ def wrap(text, key, size, max_w):
         else:
             lines.append(cur)
             cur = word
-    if cur:
-        lines.append(cur)
-    return lines
+    return lines + [cur] if cur else lines
 
 
 def esc(s):
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
 def font_faces(used):
-    """Only the fonts actually used, subset to the characters actually used."""
     css = []
     for key, file in FONT_FILES.items():
         chars = used.get(key)
@@ -78,272 +84,337 @@ def font_faces(used):
         buf = io.BytesIO()
         f.flavor = "woff"
         f.save(buf)
-        data = base64.b64encode(buf.getvalue()).decode()
         css.append(f"@font-face{{font-family:'{family}';font-weight:{weight};"
-                   f"src:url(data:font/woff;base64,{data}) format('woff');}}")
+                   f"src:url(data:font/woff;base64,{base64.b64encode(buf.getvalue()).decode()}) format('woff');}}")
     return "".join(css)
 
 
-# ---------------- Building blocks ----------------
-class Svg:
-    def __init__(self, w, h, title):
-        self.w, self.h, self.title = w, h, title
-        self.parts, self.used, self.uid = [], {}, 0
+# ---------------- Scene ----------------
+SKY, PANEL, CONTENT = 0, 1, 2   # paint layers
 
-    def add(self, s):
-        self.parts.append(s)
 
-    def id(self, prefix):
-        self.uid += 1
-        return f"{prefix}{self.uid}"
+class Scene:
+    """Elements in global coordinates, each with a bounding box so a slice only embeds what it shows."""
 
-    def t(self, x, y, s, size=14, key=REG, fill=TEXT, anchor="start", opacity=None):
-        self.used.setdefault(key, set()).update(s)
+    def __init__(self, w):
+        self.w, self.h, self.els, self.slices = w, 0, [], []
+
+    def el(self, box, svg, defs="", text=None, z=CONTENT):
+        self.els.append((z, box, svg, defs, text or {}))
+
+    # --- primitives ---
+    def t(self, x, y, s, size, key=REG, fill=TEXT, anchor="start"):
+        w = width(s, key, size)
+        x0 = x - (w if anchor == "end" else w / 2 if anchor == "middle" else 0)
         family, weight = key.split(":")
-        op = f' opacity="{opacity}"' if opacity is not None else ""
-        self.add(f'<text x="{x:.1f}" y="{y:.1f}" font-family="{family}, sans-serif" font-weight="{weight}" '
-                 f'font-size="{size}" fill="{fill}" text-anchor="{anchor}"{op}>{esc(s)}</text>')
+        self.el((x0, y - size, w, size * 1.4),
+                f'<text x="{x:.1f}" y="{y:.1f}" font-family="{family}, sans-serif" font-weight="{weight}" '
+                f'font-size="{size}" fill="{fill}" text-anchor="{anchor}">{esc(s)}</text>', text={key: set(s)})
+        return w
 
     def para(self, x, y, text, size, max_w, lh, key=REG, fill=TEXT2):
         lines = wrap(text, key, size, max_w)
         for k, line in enumerate(lines):
             self.t(x, y + k * lh, line, size, key, fill)
-        return len(lines)
+        return y + (len(lines) - 1) * lh
 
-    def rim(self, x, y, w, h, r, color):
+    @staticmethod
+    def rim_path(x, y, w, h, r, color):
         # Light comes from the top-left: brighter rim on the top and left edges only.
-        self.add(f'<path d="M{x + 0.5},{y + h - r} V{y + r} A{r - 0.5},{r - 0.5} 0 0 1 {x + r},{y + 0.5} H{x + w - r}" '
-                 f'fill="none" stroke="{color}"/>')
+        return (f'<path d="M{x + 0.5},{y + h - r} V{y + r} A{r - 0.5},{r - 0.5} 0 0 1 {x + r},{y + 0.5} H{x + w - r}" '
+                f'fill="none" stroke="{color}"/>')
 
-    def glass(self, x, y, w, h, r=18, fill=SURFACE):
-        self.add(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="{fill}" stroke="{BORDER}"/>')
-        self.rim(x, y, w, h, r, RIM)
+    def glass(self, x, y, w, h, r=22, fill=GLASS, border=BORDER, rim=RIM, z=CONTENT):
+        self.el((x, y, w, h), f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{r}" fill="{fill}" stroke="{border}"/>'
+                + self.rim_path(x, y, w, h, r, rim), z=z)
 
-    def status(self, x, y, w, h, text, size=14):
-        """ORV-style system window: thin bluish frame, message in mono between brackets."""
-        self.add(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="12" fill="{STATUS_BG}" stroke="{STATUS_BORDER}"/>')
-        self.rim(x, y, w, h, 12, STATUS_RIM)
-        self.t(x + 16, y + h / 2 + size * 0.36, text, size, MONO, ACCENT_TEXT)
+    def panel(self, y0, y1):
+        self.glass(X0, y0, PW, y1 - y0, 22, GLASS, z=PANEL)
 
-    def chip(self, x, y, label, color, size=13, h=28):
-        w = width(label, BOLD, size) + 34
-        self.add(f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{h}" rx="{h / 2 - 2}" fill="rgba(232,238,250,0.06)" stroke="{BORDER}"/>')
-        self.add(f'<circle cx="{x + 14}" cy="{y + h / 2}" r="3" fill="{color}"/>')
-        self.t(x + 24, y + h / 2 + size * 0.37, label, size, BOLD, TEXT2)
+    @staticmethod
+    def status_h(text, w, size=19, pad=18, lh=None):
+        lh = lh or round(size * 1.45)
+        n = len(wrap(text, MONO, size, w - 2 * pad))
+        return round(2 * pad + size * 0.75 + (n - 1) * lh)
+
+    def status(self, x, y, w, text, size=19, pad=18, lh=None):
+        """ORV system window: thin bluish frame, mono text between brackets. Wraps; returns its bottom."""
+        lh = lh or round(size * 1.45)
+        lines = wrap(text, MONO, size, w - 2 * pad)
+        h = self.status_h(text, w, size, pad, lh)
+        self.glass(x, y, w, h, 12, STATUS_BG, STATUS_BORDER, STATUS_RIM)
+        for k, line in enumerate(lines):
+            self.t(x + pad, y + pad + size * 0.75 + k * lh, line, size, MONO, ACCENT_TEXT)
+        return y + h
+
+    def badge(self, x, y, label, color, size=18, anchor="start"):
+        h = size + 16
+        w = width(label, BOLD, size) + 42
+        if anchor == "end":
+            x -= w
+        self.el((x, y, w, h), f'<rect x="{x:.1f}" y="{y}" width="{w:.1f}" height="{h}" rx="{h / 2 - 3}" fill="{RAISED}" stroke="{BORDER}"/>'
+                f'<circle cx="{x + 17:.1f}" cy="{y + h / 2}" r="4" fill="{color}"/>')
+        self.t(x + 29, y + h / 2 + size * 0.36, label, size, BOLD, TEXT2)
         return w
 
-    def chips(self, x, y, items, size=13, gap=10):
-        for label, col in items:
-            x += self.chip(x, y, label, col, size) + gap
-        return x
+    def button(self, x, y, w, h, label, hint, primary=False):
+        fill, border = (ACCENT_TINT, "rgba(255,255,255,0.32)") if primary else (RAISED, BORDER_STRONG)
+        self.glass(x, y, w, h, 14, fill, border, RIM)
+        self.t(x + w / 2, y + h / 2 - 2, label, 23, BOLD, "#ffffff" if primary else TEXT, anchor="middle")
+        self.t(x + w / 2, y + h / 2 + 24, hint, 16, MONO, "rgba(255,255,255,0.8)" if primary else TEXT3, anchor="middle")
 
     def stat(self, x, y, value, label, col=TEXT):
-        self.t(x, y, value, 40, NUM, col)
-        self.t(x, y + 25, label, 15, REG, TEXT2)
+        self.t(x, y, value, 50, NUM, col)
+        self.t(x, y + 30, label, 19, REG, TEXT2)
 
-    def sky(self, seed=7, density=2600, constellation=True, animate=False, frame_r=22):
+    # --- sky ---
+    def sky(self, lights, seed=7, density=2600):
         w, h = self.w, self.h
-        m = max(w, h)
-        clip = self.id("frame")
-        self.add('<defs>'
-                 f'<radialGradient id="lb" cx="{0.12 * w}" cy="{0.18 * h}" r="{0.42 * m}" gradientUnits="userSpaceOnUse">'
-                 f'<stop offset="0" stop-color="{ACCENT}" stop-opacity="0.31"/><stop offset="1" stop-color="{ACCENT}" stop-opacity="0"/></radialGradient>'
-                 f'<radialGradient id="ll" cx="{0.88 * w}" cy="{0.12 * h}" r="{0.36 * m}" gradientUnits="userSpaceOnUse">'
-                 f'<stop offset="0" stop-color="{LAVENDER}" stop-opacity="0.25"/><stop offset="1" stop-color="{LAVENDER}" stop-opacity="0"/></radialGradient>'
-                 f'<radialGradient id="lg" cx="{0.60 * w}" cy="{1.0 * h}" r="{0.42 * m}" gradientUnits="userSpaceOnUse">'
-                 f'<stop offset="0" stop-color="{SUCCESS}" stop-opacity="0.19"/><stop offset="1" stop-color="{SUCCESS}" stop-opacity="0"/></radialGradient>'
-                 f'<linearGradient id="trail" x1="0" y1="0" x2="1" y2="0">'
-                 f'<stop offset="0" stop-color="rgb(201,214,245)" stop-opacity="0"/><stop offset="1" stop-color="rgb(201,214,245)" stop-opacity="0.9"/></linearGradient>'
-                 f'<clipPath id="{clip}"><rect width="{w}" height="{h}" rx="{frame_r}"/></clipPath>'
-                 '</defs>')
-        self.add(f'<g clip-path="url(#{clip})">')
-        self.add(f'<rect width="{w}" height="{h}" fill="{BG}"/>')
-        for g in ("lb", "ll", "lg"):
-            self.add(f'<rect width="{w}" height="{h}" fill="url(#{g})"/>')
+        for i, (cx, cy, r, col, op) in enumerate(lights):
+            gid = f"light{i}"
+            self.el((cx - r, cy - r, 2 * r, 2 * r), f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="url(#{gid})"/>',
+                    defs=f'<radialGradient id="{gid}" cx="{cx}" cy="{cy}" r="{r}" gradientUnits="userSpaceOnUse">'
+                         f'<stop offset="0" stop-color="{col}" stop-opacity="{op}"/>'
+                         f'<stop offset="1" stop-color="{col}" stop-opacity="0"/></radialGradient>', z=SKY)
         rnd = random.Random(seed)
-        bright = []
         for _ in range(int(w * h / density)):
             x, y, r, o = rnd.uniform(0, w), rnd.uniform(0, h), rnd.uniform(0.3, 1.6), rnd.uniform(0.2, 0.65)
-            self.add(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.2f}" fill="{TEXT}" opacity="{o:.2f}"/>')
-            if r > 1.25:
-                bright.append((x, y))
-        if constellation:
-            bright = bright[:14]
-            for i, p1 in enumerate(bright):
-                for d, p2 in sorted((math.dist(p1, p), p) for p in bright[i + 1:])[:1]:
-                    if d < 0.28 * w:
-                        self.add(f'<line x1="{p1[0]:.1f}" y1="{p1[1]:.1f}" x2="{p2[0]:.1f}" y2="{p2[1]:.1f}" '
-                                 f'stroke="{TEXT}" stroke-opacity="0.16"/>')
-        if animate:
+            self.el((x - 2, y - 2, 4, 4), f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.2f}" fill="{TEXT}" opacity="{o:.2f}"/>', z=SKY)
+        for _ in range(int(w * h / 20000)):
             # Twinkling stars: slow, discreet, random phases.
-            for _ in range(40):
-                x, y = rnd.uniform(0, w), rnd.uniform(0, h)
-                r, dur, begin = rnd.uniform(0.7, 1.5), rnd.uniform(3.5, 7), rnd.uniform(0, 6)
-                self.add(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.2f}" fill="{TEXT}" opacity="0.12">'
-                         f'<animate attributeName="opacity" values="0.12;0.62;0.12" dur="{dur:.1f}s" begin="{begin:.1f}s" '
-                         f'repeatCount="indefinite"/></circle>')
-            # One shooting star in the upper third, every 11 s, 1.3 s long.
-            self.add(f'<g opacity="0"><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.03;0.08;0.12;1" '
-                     f'dur="11s" begin="2s" repeatCount="indefinite"/>'
-                     f'<g transform="rotate(18)"><rect y="-0.6" width="140" height="1.2" rx="0.6" fill="url(#trail)">'
-                     f'<animateTransform attributeName="transform" type="translate" values="{w * 0.25:.0f} {-h * 0.1:.0f};{w * 0.25 + 1100 * 0.12:.0f} {-h * 0.1:.0f};{w * 0.25 + 1100 * 0.12:.0f} {-h * 0.1:.0f}" '
-                     f'keyTimes="0;0.12;1" dur="11s" begin="2s" repeatCount="indefinite"/></rect></g></g>')
-        self.add(f'<rect x="0.5" y="0.5" width="{w - 1}" height="{h - 1}" rx="{frame_r}" fill="none" stroke="{BORDER}"/>')
+            x, y = rnd.uniform(0, w), rnd.uniform(0, h)
+            r, dur, begin = rnd.uniform(0.8, 1.6), rnd.uniform(3.5, 7), rnd.uniform(0, 6)
+            self.el((x - 2, y - 2, 4, 4), f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.2f}" fill="{TEXT}" opacity="0.12">'
+                    f'<animate attributeName="opacity" values="0.12;0.62;0.12" dur="{dur:.1f}s" begin="{begin:.1f}s" '
+                    f'repeatCount="indefinite"/></circle>', z=SKY)
 
-    def close(self):
-        self.add('</g>')
+    def shooting_star(self, x, y, every=11, begin=2):
+        # One shooting star: 140 px trail over 1.3 s, fading in and out, then idle until the next cycle.
+        k = 1.3 / every
+        self.el((x, y - 20, 440, 160),
+                f'<g opacity="0"><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;{k * 0.2:.3f};{k * 0.6:.3f};{k:.3f};1" '
+                f'dur="{every}s" begin="{begin}s" repeatCount="indefinite"/>'
+                f'<g transform="translate({x} {y}) rotate(18)"><rect y="-0.7" width="140" height="1.4" rx="0.7" fill="url(#trail)">'
+                f'<animateTransform attributeName="transform" type="translate" values="0 0;260 0;260 0" keyTimes="0;{k:.3f};1" '
+                f'dur="{every}s" begin="{begin}s" repeatCount="indefinite"/></rect></g></g>',
+                defs='<linearGradient id="trail" x1="0" y1="0" x2="1" y2="0">'
+                     '<stop offset="0" stop-color="rgb(201,214,245)" stop-opacity="0"/>'
+                     '<stop offset="1" stop-color="rgb(201,214,245)" stop-opacity="0.9"/></linearGradient>', z=SKY)
 
-    def save(self, name):
-        head = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.w}" height="{self.h}" viewBox="0 0 {self.w} {self.h}" '
-                f'role="img" aria-label="{esc(self.title)}"><title>{esc(self.title)}</title>'
-                f'<style>{font_faces(self.used)}</style>')
-        with open(os.path.join(OUT, name), "w", encoding="utf-8") as f:
-            f.write(head + "".join(self.parts) + "</svg>\n")
-        print(f"{name}: {os.path.getsize(os.path.join(OUT, name)) // 1024} KB")
+    # --- slicing ---
+    def slice(self, name, x, y, w, h, link=None, alt=""):
+        self.slices.append((name, x, y, w, h, link, alt))
 
+    def export(self):
+        os.makedirs(OUT, exist_ok=True)
+        for f in os.listdir(OUT):
+            os.remove(os.path.join(OUT, f))
+        W, H = self.w, self.h
+        els = sorted(self.els, key=lambda e: e[0])  # stable: keeps insertion order inside a layer
+        for name, x, y, w, h, link, alt in self.slices:
+            used, defs, body = {}, [], []
+            for _, (bx, by, bw, bh), svg, d, text in els:
+                if bx < x + w and bx + bw > x and by < y + h and by + bh > y:
+                    body.append(svg)
+                    if d and d not in defs:
+                        defs.append(d)
+                    for k, v in text.items():
+                        used.setdefault(k, set()).update(v)
+            svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="{x} {y} {w} {h}" '
+                   f'role="img" aria-label="{esc(alt)}"><title>{esc(alt)}</title><style>{font_faces(used)}</style>'
+                   f'<defs><clipPath id="frame"><rect width="{W}" height="{H}" rx="22"/></clipPath>{"".join(defs)}</defs>'
+                   f'<g clip-path="url(#frame)"><rect width="{W}" height="{H}" fill="{BG}"/>{"".join(body)}</g>'
+                   f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="22" fill="none" stroke="{BORDER}"/></svg>\n')
+            with open(os.path.join(OUT, name), "w", encoding="utf-8") as f:
+                f.write(svg)
 
-# ================= 1. Header =================
-def header():
-    W, H = 1280, 400
-    s = Svg(W, H, "Kilian Monnier — Game developer")
-    s.sky(seed=3, animate=True, constellation=False)
-
-    # A small lavender constellation on the right, its links slowly breathing (~16 s).
-    stars = [(958, 112), (1060, 74), (1172, 110), (1214, 214), (1110, 262), (996, 238), (1124, 168)]
-    links = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0), (1, 6), (6, 4)]
-    s.add('<g>')
-    for a, b in links:
-        (x1, y1), (x2, y2) = stars[a], stars[b]
-        s.add(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{LAVENDER}" stroke-opacity="0.2" stroke-width="1.2">'
-              f'<animate attributeName="stroke-opacity" values="0.2;0.45;0.2" dur="16s" repeatCount="indefinite"/></line>')
-    for i, (x, y) in enumerate(stars):
-        r = 3.4 if i in (1, 3, 6) else 2.4
-        s.add(f'<circle cx="{x}" cy="{y}" r="{r}" fill="{LAVENDER}" opacity="0.85"/>')
-    s.add('</g>')
-
-    s.glass(48, 52, 820, 296, r=22)
-    s.t(84, 102, "Game developer · Bordeaux, France", 16, REG, TEXT3)
-    s.t(82, 168, "Kilian Monnier", 64, BOLD, TEXT)
-    s.t(84, 208, "C# and C++ with Unity and Unreal Engine. Clean architecture,", 18, REG, TEXT2)
-    s.t(84, 234, "gameplay systems and multiplayer infrastructure.", 18, REG, TEXT2)
-    s.status(84, 260, 748, 44, "[A new project has been released: Atelier Nucléaire.]", 15)
-
-    # Info strip under the glass, to the right: a system-style status line.
-    s.t(W - 52, H - 44, "[Status: open to opportunities]", 16, MONO, ACCENT_TEXT, anchor="end")
-    s.close()
-    s.save("header.svg")
-
-
-# ================= 2. Featured project =================
-def featured():
-    W, H = 1280, 560
-    s = Svg(W, H, "Atelier Nucléaire — featured project")
-    s.sky(seed=11, density=3600, constellation=False)
-    s.glass(32, 32, W - 64, H - 64, r=22)
-
-    # Screenshot on the right, clipped to a radius-18 frame, with a rim like the glass.
-    img = base64.b64encode(open(os.path.join(HERE, "atelier.webp"), "rb").read()).decode()
-    ix, iy, iw = 600, 64, 616
-    ih = round(iw * 764 / 1280)
-    s.add(f'<defs><clipPath id="shot"><rect x="{ix}" y="{iy}" width="{iw}" height="{ih}" rx="18"/></clipPath></defs>')
-    s.add(f'<image href="data:image/webp;base64,{img}" x="{ix}" y="{iy}" width="{iw}" height="{ih}" '
-          f'preserveAspectRatio="xMidYMid slice" clip-path="url(#shot)"/>')
-    s.add(f'<rect x="{ix}" y="{iy}" width="{iw}" height="{ih}" rx="18" fill="none" stroke="{BORDER}"/>')
-    s.rim(ix, iy, iw, ih, 18, RIM)
-    s.t(ix + iw, iy + ih + 32, "Unity 6.3 LTS · URP · UI Toolkit · Windows and Linux", 13, MONO, TEXT3, anchor="end")
-
-    x = 72
-    s.t(x, 104, "Latest release · solo project", 16, REG, TEXT3)
-    s.t(x - 2, 156, "Atelier Nucléaire", 46, BOLD, TEXT)
-    s.t(x, 190, "A crafting demo built on industrial process chains.", 18, REG, ACCENT_TEXT)
-    s.para(x, 230, "No one-click crafting: grind, smelt, run electrolysis and sulfur chemistry, enrich uranium "
-                   "and drive a fission reactor. Every item asks which machines to build, how to connect them "
-                   "and at what rate to run them.", 17, 490, 26)
-    s.status(x, 342, 490, 44, "[Final objective: one antimatter pellet.]", 15)
-    for i, (v, l, c) in enumerate((("4", "interacting rules", TEXT), ("3", "objectives", TEXT), ("106", "EditMode tests", SUCCESS))):
-        s.stat(x + i * 160, 438, v, l, c)
-    s.chips(x, 482, (("Data-driven ScriptableObjects", ACCENT), ("Pure C# simulation core", LAVENDER)))
-    s.close()
-    s.save("featured.svg")
+    def readme_block(self):
+        """README HTML: one line of inline images, top-aligned (no baseline gap), no whitespace between them
+        (so 50 % + 50 % fits on a row). GitHub pads floated images, hence no align="left"."""
+        out = []
+        for name, x, y, w, h, link, alt in self.slices:
+            pct = f"{100 * w / self.w:.3f}".rstrip("0").rstrip(".") + "%"
+            img = f'<img src="assets/profile/{name}" alt="{esc(alt)}" width="{pct}" align="top">'
+            out.append(f'<a href="{link}">{img}</a>' if link else img)
+        return "".join(out)
 
 
-# ================= 3. Project cards =================
+# ================= The page =================
+W, M, PAD = 1200, 32, 40           # canvas width, outer margin, panel padding
+X0, PW = M, W - 2 * M              # panel x and width
+IX, IW = X0 + PAD, PW - 2 * PAD    # inner content x and width
+GAP = 32                           # space between panels
+s = Scene(W)
+
+REPO = "https://github.com/Kureo524/CraftingSimulator"
+CV = "https://raw.githubusercontent.com/Kureo524/Kureo524/main/CV-Monnier-Kilian.pdf"
+
+
+def third(i):
+    return round(i * W / 3), round((i + 1) * W / 3) - round(i * W / 3)
+
+
+def button_row(prefix, y, items, slice_top, slice_bottom):
+    """Three buttons, one per third of the canvas; each third is its own linked slice."""
+    for i, (label, hint, primary, link, alt) in enumerate(items):
+        x, w = third(i)
+        s.button(x + 52, y, w - 104, 86, label, hint, primary)
+        s.slice(f"{prefix}{i + 1}.svg", x, slice_top, w, slice_bottom - slice_top, link, alt)
+
+
+def title(top, text, right=None):
+    s.t(IX, top + 66, text, 38, BOLD, TEXT)
+    if right:
+        s.t(W - IX, top + 64, right, 20, REG, TEXT3, anchor="end")
+
+
+# ---- 1. Hero ----
+top = M
+s.t(IX, top + 64, "Game developer · Bordeaux, France", 21, REG, TEXT3)
+s.t(W - IX, top + 64, "[Status: open to opportunities]", 19, MONO, ACCENT_TEXT, anchor="end")
+s.t(IX - 3, top + 150, "Kilian Monnier", 80, BOLD, TEXT)
+s.t(IX, top + 200, "C# and C++ with Unity and Unreal Engine.", 24, REG, TEXT2)
+s.t(IX, top + 234, "Clean architecture, gameplay systems and multiplayer infrastructure.", 24, REG, TEXT2)
+s.status(IX, top + 266, 720, "[A new project has been released: Atelier Nucléaire.]", 20)
+# Lavender constellation, its links slowly breathing (~16 s).
+stars = [(850, 152), (940, 118), (1050, 142), (1110, 230), (1020, 300), (900, 286), (978, 212)]
+for a, b in [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0), (1, 6), (6, 4)]:
+    (x1, y1), (x2, y2) = stars[a], stars[b]
+    s.el((min(x1, x2), min(y1, y2), abs(x2 - x1) + 1, abs(y2 - y1) + 1),
+         f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{LAVENDER}" stroke-opacity="0.2" stroke-width="1.3">'
+         f'<animate attributeName="stroke-opacity" values="0.2;0.45;0.2" dur="16s" repeatCount="indefinite"/></line>')
+for i, (x, y) in enumerate(stars):
+    s.el((x - 4, y - 4, 8, 8), f'<circle cx="{x}" cy="{y}" r="{3.6 if i in (1, 3, 6) else 2.5}" fill="{LAVENDER}" opacity="0.9"/>')
+s.shooting_star(560, 40)
+split = top + 360
+bottom = split + 8 + 86 + PAD
+s.panel(top, bottom)
+s.slice("01-hero.svg", 0, 0, W, split,
+        alt="Kilian Monnier — Game developer in Bordeaux. C# and C++ with Unity and Unreal Engine: clean architecture, "
+            "gameplay systems and multiplayer infrastructure.")
+cut = bottom + GAP // 2
+button_row("02-hero-btn", split + 8, [
+    ("Download my CV", "[CV-Monnier-Kilian.pdf]", True, CV, "Download my CV (PDF)"),
+    ("Email me", "kilian.monnier524@gmail.com", False, "mailto:kilian.monnier524@gmail.com", "Email: kilian.monnier524@gmail.com"),
+    ("Play my games", "kuko524.itch.io", False, "https://kuko524.itch.io", "My games on itch.io"),
+], split, cut)
+
+# ---- 2. Featured project ----
+top = bottom + GAP
+title(top, "Featured project")
+s.badge(W - IX, top + 38, "Latest release · solo project", SUCCESS, size=19, anchor="end")
+cy = top + 112
+img = base64.b64encode(open(os.path.join(HERE, "atelier.webp"), "rb").read()).decode()
+iw = 540
+ih = round(iw * 764 / 1280)
+ix = W - IX - iw
+s.el((ix, cy, iw, ih),
+     f'<image href="data:image/webp;base64,{img}" x="{ix}" y="{cy}" width="{iw}" height="{ih}" '
+     f'preserveAspectRatio="xMidYMid slice" clip-path="url(#shot)"/>'
+     f'<rect x="{ix}" y="{cy}" width="{iw}" height="{ih}" rx="18" fill="none" stroke="{BORDER}"/>'
+     + s.rim_path(ix, cy, iw, ih, 18, RIM),
+     defs=f'<clipPath id="shot"><rect x="{ix}" y="{cy}" width="{iw}" height="{ih}" rx="18"/></clipPath>')
+lw = ix - IX - 36
+s.t(IX - 2, cy + 46, "Atelier Nucléaire", 52, BOLD, TEXT)
+y = s.para(IX, cy + 90, "A crafting demo built on industrial process chains.", 23, lw, 31, REG, ACCENT_TEXT)
+y = s.para(IX, y + 44, "No one-click crafting: grind, smelt, run electrolysis, enrich uranium and drive a fission "
+                   "reactor. Every item asks which machines to build, how to connect them and how fast to run them.",
+       20, lw, 30)
+msg = "[Final objective: one antimatter pellet.]"
+y = s.status(IX, max(y + 28, cy + ih - s.status_h(msg, lw)), lw, msg)
+sy = max(y, cy + ih) + 76
+for i, (v, l, c) in enumerate((("4", "interacting rules", TEXT), ("3", "objectives", TEXT),
+                                ("106", "EditMode tests", SUCCESS))):
+    s.stat(IX + i * 210, sy, v, l, c)
+s.t(W - IX, sy + 30, "Unity 6.3 LTS · URP · UI Toolkit", 18, MONO, TEXT3, anchor="end")
+split = sy + 66
+bottom = split + 8 + 86 + PAD
+s.panel(top, bottom)
+s.slice("03-featured.svg", 0, cut, W, split - cut, REPO,
+        "Featured project: Atelier Nucléaire, a crafting demo built on industrial process chains. Unity 6.3 LTS, "
+        "4 interacting rules, 3 objectives, 106 EditMode tests.")
+prev, cut = cut, bottom + GAP // 2
+button_row("04-featured-btn", split + 8, [
+    ("Download the game", "[Windows · Linux]", True, REPO + "/releases/latest", "Download Atelier Nucléaire for Windows or Linux"),
+    ("Source code", "Kureo524/CraftingSimulator", False, REPO, "Atelier Nucléaire source code"),
+    ("Crafting rules", "[in French]", False, REPO + "/blob/main/Docs/MesRegles.md", "Atelier Nucléaire crafting rules (French)"),
+], split, cut)
+
+# ---- 3. Projects ----
 PROJECTS = [
-    dict(file="card-taille.svg", title="Taille and Retry", genre="Puzzle-platformer · game jam",
-         badge=("Best Gameplay award", WARNING),
-         body="The level itself stretches and compresses. Built in a team for the La Horde Winter Game Jam.",
-         role="[Role: deformation mechanic, movement, menus.]", seed=41),
-    dict(file="card-escave.svg", title="Escave", genre="2D precision platformer · team of 8",
-         badge=("Published on itch.io", SUCCESS),
-         body="Celeste-inspired controls with coyote time and input buffering, a grappling hook, ice axes and a living cave full of traps.",
-         role="[Role: wall grab and wall jump, main menu, saves.]", seed=43),
-    dict(file="card-punkpulse.svg", title="Punk Pulse", genre="Rhythm action game",
-         badge=("Playable on itch.io", SUCCESS),
-         body="Collect melodies, fuse them into new ones and play them from the hotbar. The Melody Codex keeps track of every one.",
-         role="[Role: melody system, Melody Codex, fusion, hotbar.]", seed=47),
-    dict(file="card-pokylite.svg", title="PokyLite", genre="Multiplayer monster-battler · targeting Steam",
-         badge=("In development · private", ACCENT),
-         body="Server-authoritative netcode, a pure C# battle engine covered by unit tests, and an ASP.NET Core + PostgreSQL backend.",
-         role="[Unity 6 · URP · FishNet · ASP.NET Core]", seed=53),
+    dict(title="Taille and Retry", genre="Puzzle-platformer · game jam", badge=("Best Gameplay award", WARNING),
+         body="The level itself stretches and compresses. Made in a team for the La Horde Winter Game Jam 2025.",
+         role="[Role: deformation mechanic, movement, menus.]", link="https://github.com/theo-bsl/Taille"),
+    dict(title="Escave", genre="2D precision platformer · team of 8", badge=("Published on itch.io", SUCCESS),
+         body="Celeste-inspired controls with coyote time and input buffering, a grappling hook, ice axes and a living cave.",
+         role="[Role: wall grab and wall jump, main menu, saves.]", link="https://lucasdrpx.itch.io/escave"),
+    dict(title="Punk Pulse", genre="Rhythm action game", badge=("Playable on itch.io", SUCCESS),
+         body="Collect melodies, fuse them into new ones and play them from the hotbar. The Melody Codex keeps track of them all.",
+         role="[Role: melodies, Melody Codex, fusion, hotbar.]", link="https://lawice2.itch.io/punk-pulse"),
+    dict(title="PokyLite", genre="Multiplayer monster-battler · for Steam", badge=("In development · private", ACCENT),
+         body="Server-authoritative netcode, a pure C# battle engine covered by unit tests, an ASP.NET Core + PostgreSQL backend.",
+         role="[Unity 6 · URP · FishNet · ASP.NET Core]", link=None),
 ]
+top = bottom + GAP
+title(top, "Projects", "Team projects, game jams and work in progress")
+CP, CG = 30, 16                    # card padding, gap between cards
+cw = (IW - CG) / 2
+tw = cw - 2 * CP
+ch = max(CP + 196 + (len(wrap(p["body"], REG, 20, tw)) - 1) * 30 + 30 + s.status_h(p["role"], tw, 18, lh=26) + CP
+         for p in PROJECTS)       # one height for all cards, sized for the longest
+cards_top = top + 104
+s.slice("05-projects.svg", 0, cut, W, cards_top - CG // 2 - cut, alt="Projects")
+for r in range(2):
+    ry = cards_top + r * (ch + CG)
+    for c in range(2):
+        p = PROJECTS[r * 2 + c]
+        x = IX + c * (cw + CG)
+        s.glass(x, ry, cw, ch, 18, SURFACE)
+        s.badge(x + CP, ry + CP, *p["badge"])
+        s.t(x + CP - 2, ry + CP + 90, p["title"], 40, BOLD, TEXT)
+        s.t(x + CP, ry + CP + 128, p["genre"], 21, REG, ACCENT_TEXT)
+        s.para(x + CP, ry + CP + 170, p["body"], 20, tw, 30)
+        s.status(x + CP, ry + ch - CP - s.status_h(p["role"], tw, 18, lh=26), tw, p["role"], 18, lh=26)
+        s.slice(f"06-card{r * 2 + c + 1}.svg", c * W // 2, ry - CG // 2, W // 2, ch + CG, p["link"],
+                f'{p["title"]} — {p["genre"]}. {p["badge"][0]}.')
+cut = cards_top + 2 * ch + CG + CG // 2
+end = s.status(IX, cut + 10, IW, "[Also in development: Tower of the Apocalypse, a data-driven turn-based mobile RPG in Unity 6.]")
+bottom = end + PAD
+s.panel(top, bottom)
 
+# ---- 4. Toolbox + footer ----
+top = bottom + GAP
+title(top, "Toolbox")
+cols = [
+    ("Languages", [("C#", ACCENT), ("C++", ACCENT)]),
+    ("Engines", [("Unity 6 · URP", ACCENT), ("Unreal Engine", LAVENDER), ("UI Toolkit", ACCENT)]),
+    ("Multiplayer, backend", [("FishNet", SUCCESS), ("ASP.NET Core", LAVENDER), ("PostgreSQL", LAVENDER)]),
+    ("Practices", [("Server-authoritative", SUCCESS), ("Data-driven design", ACCENT), ("Unit testing", SUCCESS), ("DI · EventBus", LAVENDER)]),
+]
+colw = IW / 4
+for i, (name, items) in enumerate(cols):
+    x = IX + i * colw
+    s.t(x, top + 126, name, 22, BOLD, TEXT2)
+    for k, (label, col) in enumerate(items):
+        s.badge(x, top + 148 + k * 50, label, col, 19)
+    if i:
+        s.el((x - 20, top + 100, 1, 240), f'<line x1="{x - 20}" y1="{top + 100}" x2="{x - 20}" y2="{top + 340}" stroke="{BORDER}"/>')
+bottom = top + 148 + 3 * 50 + 35 + PAD
+s.panel(top, bottom)
+s.t(W / 2, bottom + 66, "[Thanks for reading this far. Your visit has been recorded in the constellation.]", 19, MONO,
+    ACCENT_TEXT, anchor="middle")
+s.h = bottom + 116
+s.slice("07-end.svg", 0, cut, W, s.h - cut,
+        alt="Also in development: Tower of the Apocalypse. Toolbox: C#, C++, Unity 6 with URP and UI Toolkit, Unreal Engine, "
+            "FishNet, ASP.NET Core, PostgreSQL; server-authoritative architecture, data-driven design, unit testing, DI and EventBus.")
 
-def card(p):
-    W, H = 640, 350
-    s = Svg(W, H, f"{p['title']} — {p['genre']}")
-    s.sky(seed=p["seed"], density=3000, constellation=False)
-    s.glass(20, 20, W - 40, H - 40, r=18)
-    x = 48
-    label, col = p["badge"]
-    bw = width(label, BOLD, 15) + 38
-    s.add(f'<rect x="{x}" y="46" width="{bw:.1f}" height="30" rx="14" fill="rgba(232,238,250,0.06)" stroke="{BORDER}"/>')
-    s.add(f'<circle cx="{x + 15}" cy="61" r="3.5" fill="{col}"/>')
-    s.t(x + 27, 66.5, label, 15, BOLD, TEXT2)
-    s.t(x - 1, 126, p["title"], 40, BOLD, TEXT)
-    s.t(x, 160, p["genre"], 19, REG, ACCENT_TEXT)
-    s.para(x, 198, p["body"], 19, W - 2 * x, 28)
-    s.status(x, H - 44 - 48, W - 2 * x, 48, p["role"], 16)
-    s.close()
-    s.save(p["file"])
+H = s.h
+s.sky([(150, 130, 560, ACCENT, 0.31), (1060, 90, 460, LAVENDER, 0.25), (700, 900, 560, SUCCESS, 0.12),
+       (120, 1500, 560, LAVENDER, 0.16), (1100, 2050, 560, ACCENT, 0.2), (600, H, 520, SUCCESS, 0.19)], seed=3)
+s.export()
 
-
-# ================= 4. Toolbox =================
-def toolbox():
-    W, H = 1280, 310
-    s = Svg(W, H, "Toolbox")
-    s.sky(seed=61, density=3600, constellation=False)
-    s.glass(32, 32, W - 64, H - 64, r=22)
-    cols = [
-        ("Languages", [("C#", ACCENT), ("C++", ACCENT)]),
-        ("Engines", [("Unity 6 · URP", ACCENT), ("Unreal Engine", LAVENDER), ("UI Toolkit", ACCENT)]),
-        ("Multiplayer and backend", [("FishNet", SUCCESS), ("ASP.NET Core", LAVENDER), ("PostgreSQL", LAVENDER)]),
-        ("Practices", [("Server-authoritative", SUCCESS), ("Data-driven design", ACCENT), ("Unit testing", SUCCESS), ("DI · EventBus", LAVENDER)]),
-    ]
-    cw = (W - 64 - 2 * 40) / 4
-    for i, (title, items) in enumerate(cols):
-        x = 72 + i * cw
-        s.t(x, 92, title, 19, BOLD, TEXT)
-        for k, (label, col) in enumerate(items):
-            s.chip(x, 110 + k * 40, label, col, 16, 32)
-        if i:
-            s.add(f'<line x1="{x - 22}" y1="72" x2="{x - 22}" y2="{H - 72}" stroke="{BORDER}"/>')
-    s.close()
-    s.save("toolbox.svg")
-
-
-# ================= 5. Footer =================
-def footer():
-    W, H = 1280, 120
-    s = Svg(W, H, "Thanks for visiting")
-    s.sky(seed=71, density=3000, constellation=False, animate=True)
-    s.t(W / 2, H / 2 + 6, "[Thanks for reading this far. Your visit has been recorded in the constellation.]", 17, MONO, ACCENT_TEXT, anchor="middle")
-    s.close()
-    s.save("footer.svg")
-
-
-header()
-featured()
-for p in PROJECTS:
-    card(p)
-toolbox()
-footer()
+readme = os.path.join(HERE, "..", "README.md")
+src = open(readme, encoding="utf-8").read()
+a, b = "<!-- profile:start -->", "<!-- profile:end -->"
+open(readme, "w", encoding="utf-8").write(src[:src.index(a) + len(a)] + "\n" + s.readme_block() + "\n" + src[src.index(b):])
+print(f"{len(s.slices)} slices, canvas {W}x{H}, {sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT)) // 1024} KB")
