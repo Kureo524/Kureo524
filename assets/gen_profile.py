@@ -2,7 +2,7 @@
 
 The whole profile is ONE scene (a night sky with glass panels) drawn in global coordinates, then cut into
 slices: each slice is an SVG whose viewBox is a window on that scene. The README stacks the slices as
-floated images, so they join seamlessly while each one can still carry its own link (cards, buttons).
+inline images aligned to the top with no whitespace between them, so they join seamlessly while each one can still carry its own link (cards, buttons).
 Fonts are embedded as subset WOFF so the slices render the same everywhere.
 
 Usage, from the repository root (requires fontTools); rewrites the block between the profile markers
@@ -229,13 +229,14 @@ class Scene:
                 f.write(svg)
 
     def readme_block(self):
-        """README HTML: floated slices, so rows of halves / thirds sit side by side with no gap."""
+        """README HTML: one line of inline images, top-aligned (no baseline gap), no whitespace between them
+        (so 50 % + 50 % fits on a row). GitHub pads floated images, hence no align="left"."""
         out = []
         for name, x, y, w, h, link, alt in self.slices:
             pct = f"{100 * w / self.w:.3f}".rstrip("0").rstrip(".") + "%"
-            img = f'<img src="assets/profile/{name}" alt="{esc(alt)}" width="{pct}" align="left">'
+            img = f'<img src="assets/profile/{name}" alt="{esc(alt)}" width="{pct}" align="top">'
             out.append(f'<a href="{link}">{img}</a>' if link else img)
-        return "\n".join(out)
+        return "".join(out)
 
 
 # ================= The page =================
@@ -274,7 +275,7 @@ s.t(W - IX, top + 64, "[Status: open to opportunities]", 19, MONO, ACCENT_TEXT, 
 s.t(IX - 3, top + 150, "Kilian Monnier", 80, BOLD, TEXT)
 s.t(IX, top + 200, "C# and C++ with Unity and Unreal Engine.", 24, REG, TEXT2)
 s.t(IX, top + 234, "Clean architecture, gameplay systems and multiplayer infrastructure.", 24, REG, TEXT2)
-s.status(IX, top + 266, 650, "[A new project has been released: Atelier Nucléaire.]", 20)
+s.status(IX, top + 266, 720, "[A new project has been released: Atelier Nucléaire.]", 20)
 # Lavender constellation, its links slowly breathing (~16 s).
 stars = [(850, 152), (940, 118), (1050, 142), (1110, 230), (1020, 300), (900, 286), (978, 212)]
 for a, b in [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0), (1, 6), (6, 4)]:
@@ -316,14 +317,14 @@ s.el((ix, cy, iw, ih),
 lw = ix - IX - 36
 s.t(IX - 2, cy + 46, "Atelier Nucléaire", 52, BOLD, TEXT)
 y = s.para(IX, cy + 90, "A crafting demo built on industrial process chains.", 23, lw, 31, REG, ACCENT_TEXT)
-s.para(IX, y + 44, "No one-click crafting: grind, smelt, run electrolysis, enrich uranium and drive a fission "
+y = s.para(IX, y + 44, "No one-click crafting: grind, smelt, run electrolysis, enrich uranium and drive a fission "
                    "reactor. Every item asks which machines to build, how to connect them and how fast to run them.",
        20, lw, 30)
 msg = "[Final objective: one antimatter pellet.]"
-s.status(IX, cy + ih - s.status_h(msg, lw), lw, msg)
-sy = cy + ih + 76
+y = s.status(IX, max(y + 28, cy + ih - s.status_h(msg, lw)), lw, msg)
+sy = max(y, cy + ih) + 76
 for i, (v, l, c) in enumerate((("4", "interacting rules", TEXT), ("3", "objectives", TEXT),
-                                ("106", "EditMode tests", SUCCESS), ("2", "assemblies: Core, Game", TEXT))):
+                                ("106", "EditMode tests", SUCCESS))):
     s.stat(IX + i * 210, sy, v, l, c)
 s.t(W - IX, sy + 30, "Unity 6.3 LTS · URP · UI Toolkit", 18, MONO, TEXT3, anchor="end")
 split = sy + 66
