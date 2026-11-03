@@ -1,39 +1,51 @@
-# Kilian Monnier
+<p align="center">
+  <img src="assets/header.svg" alt="Kilian Monnier — Game developer in Bordeaux. C# and C++ with Unity and Unreal Engine: clean architecture, gameplay systems and multiplayer infrastructure." width="100%">
+</p>
 
-Game developer specializing in C# and C++ with Unity and Unreal Engine, based in Bordeaux. Focused on clean architecture, functional gameplay systems, and multiplayer infrastructure.
+<p align="center">
+  <a href="https://raw.githubusercontent.com/Kureo524/Kureo524/main/CV-Monnier-Kilian.pdf"><img alt="Download my CV" src="https://img.shields.io/badge/Download_my_CV-PDF-8aa8e0?style=flat-square&labelColor=16161e"></a>
+  <a href="mailto:kilian.monnier524@gmail.com"><img alt="Email" src="https://img.shields.io/badge/Email-kilian.monnier524%40gmail.com-a597c0?style=flat-square&labelColor=16161e"></a>
+  <a href="https://kuko524.itch.io"><img alt="itch.io" src="https://img.shields.io/badge/itch.io-kuko524-9ebd85?style=flat-square&logo=itchdotio&logoColor=e8eefa&labelColor=16161e"></a>
+</p>
 
-**[Download my CV (PDF)](https://raw.githubusercontent.com/Kureo524/Kureo524/main/CV-Monnier-Kilian.pdf)**
+## Featured project
 
-## Featured Projects
+<p align="center">
+  <a href="https://github.com/Kureo524/CraftingSimulator"><img src="assets/featured.svg" alt="Atelier Nucléaire: a crafting demo built on industrial process chains, from grinding ore to an antimatter pellet. Unity 6.3 LTS, 4 interacting rules, 3 objectives, 106 EditMode tests." width="100%"></a>
+</p>
 
-### Escave — 2D precision platformer
+<p align="center">
+  <a href="https://github.com/Kureo524/CraftingSimulator/releases/latest"><b>Download for Windows or Linux</b></a> ·
+  <a href="https://github.com/Kureo524/CraftingSimulator"><b>Source</b></a> ·
+  <a href="https://github.com/Kureo524/CraftingSimulator/blob/main/Docs/MesRegles.md"><b>Crafting rules</b></a> (FR)
+</p>
 
-Published on itch.io. Built in a team of eight. Implemented the wall grab / wall jump mechanic, the main menu UI, and the save system. Inspired by Celeste: fluid controls with coyote time and input buffering, a grappling hook, ice axes, and a living cave full of traps.
+## Projects
 
-[Play on itch.io](https://lucasdrpx.itch.io/escave) · [Source](https://github.com/lucasdprx/Escave) · Unity / C#
+<p align="center">
+  <a href="https://github.com/theo-bsl/Taille"><img src="assets/card-taille.svg" alt="Taille and Retry — puzzle-platformer, Best Gameplay award at the La Horde Winter Game Jam" width="49%"></a>
+  <a href="https://lucasdrpx.itch.io/escave"><img src="assets/card-escave.svg" alt="Escave — 2D precision platformer published on itch.io, team of eight" width="49%"></a>
+  <a href="https://lawice2.itch.io/punk-pulse"><img src="assets/card-punkpulse.svg" alt="Punk Pulse — rhythm action game, playable on itch.io" width="49%"></a>
+  <img src="assets/card-pokylite.svg" alt="PokyLite — multiplayer monster-battler in development, private repository" width="49%">
+</p>
 
-### Taille and Retry — puzzle-platformer
+<p align="center">
+  <sub>
+    Taille and Retry: <a href="https://github.com/theo-bsl/Taille">source</a> ·
+    Escave: <a href="https://lucasdrpx.itch.io/escave">play</a>, <a href="https://github.com/lucasdprx/Escave">source</a> ·
+    Punk Pulse: <a href="https://lawice2.itch.io/punk-pulse">play</a>, <a href="https://github.com/Gabriel-Etienne/Instance2---2026">source</a> ·
+    Also in development: <b>Tower of the Apocalypse</b>, a data-driven turn-based mobile RPG (Unity 6 · URP, private)
+  </sub>
+</p>
 
-A puzzle-platformer where the level itself stretches and compresses. Built for the La Horde Winter Game Jam 2026, where the team won the **Best Gameplay** award. Implemented the core deformation mechanic, character movement, and the menus / UI.
+## Toolbox
 
-[Source](https://github.com/theo-bsl/Taille) · Unity / C#
+<p align="center">
+  <img src="assets/toolbox.svg" alt="Languages: C#, C++. Engines: Unity 6 with URP and UI Toolkit, Unreal Engine. Multiplayer and backend: FishNet, ASP.NET Core, PostgreSQL. Practices: server-authoritative architecture, data-driven design, unit testing, dependency injection and EventBus." width="100%">
+</p>
 
-### Punk Pulse — rhythm action game
+<p align="center">
+  <img src="assets/footer.svg" alt="Thanks for visiting." width="100%">
+</p>
 
-Unity project. Implemented the melody system and its UI, the Melody Codex (the in-game registry of melodies), melody fusion, and the hotbar.
-
-[Play on itch.io](https://lawice2.itch.io/punk-pulse) · [Source](https://github.com/Gabriel-Etienne/Instance2---2026) · Unity / C#
-
-### PokyLite — multiplayer monster-battler (private)
-
-Multiplayer Pokemon-style game (Gen 1-5) in Unity 6 / URP / FishNet, targeting Steam. Server-authoritative architecture, a pure C# battle engine, comprehensive unit tests, and persistence through an ASP.NET Core + PostgreSQL API. In active development.
-
-### Tower of the Apocalypse — turn-based RPG (private)
-
-Turn-based RPG for mobile, built in Unity 6 / URP with C#. Data-driven combat and a mobile-first design. In early development.
-
-## Contact
-
-- Email: kilian.monnier524@gmail.com
-- GitHub: [Kureo524](https://github.com/Kureo524)
-- itch.io: [kuko524](https://kuko524.itch.io)
+<p align="center"><sub>Visuals generated by <a href="assets/gen_profile.py"><code>assets/gen_profile.py</code></a> in the “Verre d'encre” art direction · fonts under the OFL: Gothic A1, Barlow Condensed, IBM Plex Mono.</sub></p>
