@@ -343,7 +343,7 @@ button_row("04-featured-btn", split + 8, [
 # ---- 3. Projects ----
 PROJECTS = [
     dict(title="Taille and Retry", genre="Puzzle-platformer · game jam", badge=("Best Gameplay award", WARNING),
-         body="The level itself stretches and compresses. Made in a team for the La Horde Winter Game Jam.",
+         body="The level itself stretches and compresses. Made in a team for the La Horde Winter Game Jam 2025.",
          role="[Role: deformation mechanic, movement, menus.]", link="https://github.com/theo-bsl/Taille"),
     dict(title="Escave", genre="2D precision platformer · team of 8", badge=("Published on itch.io", SUCCESS),
          body="Celeste-inspired controls with coyote time and input buffering, a grappling hook, ice axes and a living cave.",
