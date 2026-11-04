@@ -362,8 +362,36 @@ cw = (IW - CG) / 2
 tw = cw - 2 * CP
 ch = max(CP + 196 + (len(wrap(p["body"], REG, 20, tw)) - 1) * 30 + 30 + s.status_h(p["role"], tw, 18, lh=26) + CP
          for p in PROJECTS)       # one height for all cards, sized for the longest
-cards_top = top + 104
-s.slice("05-projects.svg", 0, cut, W, cards_top - CG // 2 - cut, alt="Projects")
+
+# Manhwadle: full-width card above the grid, with a screenshot, linking to the playable web version.
+MANHWADLE = "https://kureo524.github.io/Manhwadle/"
+mw_top = top + 104
+mw_iw = 440
+mw_ih = round(mw_iw * 556 / 880)
+mw_ix = IX + IW - CP - mw_iw
+mw_tw = mw_ix - IX - 2 * CP
+mw_body = "A daily Wordle-like across five webtoons, with an ORV-style system window UI. Windows, macOS, Linux and web."
+mw_role = "[Electron · GitHub Actions · GitHub Pages]"
+# Tall enough for the screenshot and for the text column (same layout as the project cards).
+mw_h = max(mw_ih + 2 * CP, CP + 170 + (len(wrap(mw_body, REG, 20, mw_tw)) - 1) * 30 + 30 + s.status_h(mw_role, mw_tw, 18, lh=26) + CP)
+s.slice("05-projects.svg", 0, cut, W, mw_top - CG // 2 - cut, alt="Projects")
+s.glass(IX, mw_top, IW, mw_h, 18, SURFACE)
+mw_iy = mw_top + (mw_h - mw_ih) // 2
+shot = base64.b64encode(open(os.path.join(HERE, "manhwadle.webp"), "rb").read()).decode()
+s.el((mw_ix, mw_iy, mw_iw, mw_ih),
+     f'<image href="data:image/webp;base64,{shot}" x="{mw_ix}" y="{mw_iy}" width="{mw_iw}" height="{mw_ih}" '
+     f'preserveAspectRatio="xMidYMid slice" clip-path="url(#mwshot)"/>'
+     f'<rect x="{mw_ix}" y="{mw_iy}" width="{mw_iw}" height="{mw_ih}" rx="12" fill="none" stroke="{BORDER}"/>'
+     + s.rim_path(mw_ix, mw_iy, mw_iw, mw_ih, 12, RIM),
+     defs=f'<clipPath id="mwshot"><rect x="{mw_ix}" y="{mw_iy}" width="{mw_iw}" height="{mw_ih}" rx="12"/></clipPath>')
+s.badge(IX + CP, mw_top + CP, "Playable in the browser", SUCCESS)
+s.t(IX + CP - 2, mw_top + CP + 90, "Manhwadle", 40, BOLD, TEXT)
+s.t(IX + CP, mw_top + CP + 128, "Character-guessing game · solo project", 21, REG, ACCENT_TEXT)
+s.para(IX + CP, mw_top + CP + 170, mw_body, 20, mw_tw, 30)
+s.status(IX + CP, mw_top + mw_h - CP - s.status_h(mw_role, mw_tw, 18, lh=26), mw_tw, mw_role, 18, lh=26)
+s.slice("05-manhwadle.svg", 0, mw_top - CG // 2, W, mw_h + CG, MANHWADLE,
+        "Manhwadle — Character-guessing game · solo project. Playable in the browser.")
+cards_top = mw_top + mw_h + CG
 for r in range(2):
     ry = cards_top + r * (ch + CG)
     for c in range(2):
