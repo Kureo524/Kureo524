@@ -77,7 +77,7 @@ def font_faces(used):
         opts.flavor = "woff"
         opts.layout_features = ["kern", "liga"]
         opts.name_IDs = []
-        f = TTFont(os.path.join(FONTS_DIR, file))
+        f = TTFont(os.path.join(FONTS_DIR, file), recalcTimestamp=False)  # same input, same bytes
         sub = subset.Subsetter(opts)
         sub.populate(text="".join(sorted(chars | {" "})))
         sub.subset(f)
@@ -97,7 +97,7 @@ class Scene:
     """Elements in global coordinates, each with a bounding box so a slice only embeds what it shows."""
 
     def __init__(self, w):
-        self.w, self.h, self.els, self.slices = w, 0, [], []
+        self.w, self.h, self.els, self.slices, self.files = w, 0, [], [], {}
 
     def el(self, box, svg, defs="", text=None, z=CONTENT):
         self.els.append((z, box, svg, defs, text or {}))
@@ -225,7 +225,11 @@ class Scene:
                    f'<defs><clipPath id="frame"><rect width="{W}" height="{H}" rx="22"/></clipPath>{"".join(defs)}</defs>'
                    f'<g clip-path="url(#frame)"><rect width="{W}" height="{H}" fill="{BG}"/>{"".join(body)}</g>'
                    f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="22" fill="none" stroke="{BORDER}"/></svg>\n')
-            with open(os.path.join(OUT, name), "w", encoding="utf-8") as f:
+            # Content hash in the FILE NAME: GitHub serves README images through a redirect that drops the query
+            # string, so "?v=" does not bust the browser cache; a new name does.
+            base, ext = os.path.splitext(name)
+            self.files[name] = f"{base}.{hashlib.sha1(svg.encode()).hexdigest()[:8]}{ext}"
+            with open(os.path.join(OUT, self.files[name]), "w", encoding="utf-8") as f:
                 f.write(svg)
 
     def readme_block(self):
@@ -234,10 +238,7 @@ class Scene:
         out = []
         for name, x, y, w, h, link, alt in self.slices:
             pct = f"{100 * w / self.w:.3f}".rstrip("0").rstrip(".") + "%"
-            # Content hash in the URL: browsers and GitHub's image cache keep a file for a while under the same
-            # URL, so a changed slice gets a new URL and shows up as soon as the README is updated.
-            digest = hashlib.sha1(open(os.path.join(OUT, name), "rb").read()).hexdigest()[:8]
-            img = f'<img src="assets/profile/{name}?v={digest}" alt="{esc(alt)}" width="{pct}" align="top">'
+            img = f'<img src="assets/profile/{self.files[name]}" alt="{esc(alt)}" width="{pct}" align="top">'
             out.append(f'<a href="{link}">{img}</a>' if link else img)
         return "".join(out)
 
