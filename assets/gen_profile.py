@@ -349,9 +349,9 @@ button_row("04-featured-btn", split + 8, [
 
 # ---- 3. Projects ----
 PROJECTS = [
-    dict(title="Forge Studio", genre="Unity editor tools · solo", badge=("Source coming soon", ACCENT),
+    dict(title="Forge Studio", genre="Unity editor tools · solo", badge=("Source on GitHub", SUCCESS),
          body="A tool suite so designers build a whole dungeon crawler without code: data editing, validation before saving, dashboards and charts.",
-         role="[UI Toolkit · validation · 126 tests]", link=None),
+         role="[UI Toolkit · validation · 139 tests]", link="https://github.com/Kureo524/DungeonCrawlerTools"),
     dict(title="Aegis", genre="Horde survival, MOBA controls · solo", badge=("Release v0.4", SUCCESS),
          body="Two champions, 68 items, 43 augments, waves and a boss. State machines, data-driven content, DI and an EventBus.",
          role="[Unity 6.3 · VContainer · 212 tests]", link="https://github.com/Kureo524/Aegis/releases/latest"),
