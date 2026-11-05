@@ -250,19 +250,22 @@ GAP = 32                           # space between panels
 s = Scene(W)
 
 REPO = "https://github.com/Kureo524/CraftingSimulator"
+MANHWADLE_REPO = "https://github.com/Kureo524/Manhwadle"
+MANHWADLE = "https://kureo524.github.io/Manhwadle/"
 CV = "https://raw.githubusercontent.com/Kureo524/Kureo524/main/CV-Monnier-Kilian.pdf"
 
 
-def third(i):
-    return round(i * W / 3), round((i + 1) * W / 3) - round(i * W / 3)
+BTN_GAP = 24
 
 
 def button_row(prefix, y, items, slice_top, slice_bottom):
-    """Three buttons, one per third of the canvas; each third is its own linked slice."""
+    """Three buttons spread over the panel's inner width, BTN_GAP apart. Each button is its own linked slice,
+    cut in the middle of the gaps (the outer slices also take the panel margin)."""
+    bw = (IW - 2 * BTN_GAP) / 3
+    cuts = [0] + [round(IX + i * (bw + BTN_GAP) - BTN_GAP / 2) for i in (1, 2)] + [W]
     for i, (label, hint, primary, link, alt) in enumerate(items):
-        x, w = third(i)
-        s.button(x + 52, y, w - 104, 86, label, hint, primary)
-        s.slice(f"{prefix}{i + 1}.svg", x, slice_top, w, slice_bottom - slice_top, link, alt)
+        s.button(round(IX + i * (bw + BTN_GAP)), y, round(bw), 86, label, hint, primary)
+        s.slice(f"{prefix}{i + 1}.svg", cuts[i], slice_top, cuts[i + 1] - cuts[i], slice_bottom - slice_top, link, alt)
 
 
 def title(top, text, right=None):
@@ -305,11 +308,11 @@ button_row("02-hero-btn", split + 8, [
 # ---- 2. Featured project ----
 top = bottom + GAP
 title(top, "Featured project")
-s.badge(W - IX, top + 38, "Latest release · solo project", SUCCESS, size=19, anchor="end")
+s.badge(W - IX, top + 38, "Playable in the browser · solo project", SUCCESS, size=19, anchor="end")
 cy = top + 112
-img = base64.b64encode(open(os.path.join(HERE, "atelier.webp"), "rb").read()).decode()
+img = base64.b64encode(open(os.path.join(HERE, "manhwadle.webp"), "rb").read()).decode()
 iw = 540
-ih = round(iw * 764 / 1280)
+ih = round(iw * 556 / 880)
 ix = W - IX - iw
 s.el((ix, cy, iw, ih),
      f'<image href="data:image/webp;base64,{img}" x="{ix}" y="{cy}" width="{iw}" height="{ih}" '
@@ -318,29 +321,29 @@ s.el((ix, cy, iw, ih),
      + s.rim_path(ix, cy, iw, ih, 18, RIM),
      defs=f'<clipPath id="shot"><rect x="{ix}" y="{cy}" width="{iw}" height="{ih}" rx="18"/></clipPath>')
 lw = ix - IX - 36
-s.t(IX - 2, cy + 46, "Atelier Nucléaire", 52, BOLD, TEXT)
-y = s.para(IX, cy + 90, "A crafting demo built on industrial process chains.", 23, lw, 31, REG, ACCENT_TEXT)
-y = s.para(IX, y + 44, "No one-click crafting: grind, smelt, run electrolysis, enrich uranium and drive a fission "
-                   "reactor. Every item asks which machines to build, how to connect them and how fast to run them.",
+s.t(IX - 2, cy + 46, "Manhwadle", 52, BOLD, TEXT)
+y = s.para(IX, cy + 90, "A daily character-guessing game across five webtoons.", 23, lw, 31, REG, ACCENT_TEXT)
+y = s.para(IX, y + 44, "Each guess is compared to the mystery character in 9 categories, while the constellations "
+                   "comment on your run. Desktop app, browser version and installable on mobile.",
        20, lw, 30)
-msg = "[Final objective: one antimatter pellet.]"
+msg = "[Clear condition: identify the mystery incarnation.]"
 y = s.status(IX, max(y + 28, cy + ih - s.status_h(msg, lw)), lw, msg)
 sy = max(y, cy + ih) + 76
-for i, (v, l, c) in enumerate((("4", "interacting rules", TEXT), ("3", "objectives", TEXT),
-                                ("106", "EditMode tests", SUCCESS))):
+for i, (v, l, c) in enumerate((("107", "characters", TEXT), ("5", "webtoons", TEXT),
+                                ("4", "platforms", SUCCESS))):
     s.stat(IX + i * 210, sy, v, l, c)
-s.t(W - IX, sy + 30, "Unity 6.3 LTS · URP · UI Toolkit", 18, MONO, TEXT3, anchor="end")
+s.t(W - IX, sy + 30, "Electron · GitHub Actions · Cloudflare", 18, MONO, TEXT3, anchor="end")
 split = sy + 66
 bottom = split + 8 + 86 + PAD
 s.panel(top, bottom)
-s.slice("03-featured.svg", 0, cut, W, split - cut, REPO,
-        "Featured project: Atelier Nucléaire, a crafting demo built on industrial process chains. Unity 6.3 LTS, "
-        "4 interacting rules, 3 objectives, 106 EditMode tests.")
+s.slice("03-featured.svg", 0, cut, W, split - cut, MANHWADLE,
+        "Featured project: Manhwadle, a daily character-guessing game across five webtoons. 107 characters, "
+        "Windows, macOS, Linux and web; Electron, GitHub Actions, Cloudflare.")
 prev, cut = cut, bottom + GAP // 2
 button_row("04-featured-btn", split + 8, [
-    ("Download the game", "[Windows · Linux]", True, REPO + "/releases/latest", "Download Atelier Nucléaire for Windows or Linux"),
-    ("Source code", "Kureo524/CraftingSimulator", False, REPO, "Atelier Nucléaire source code"),
-    ("Crafting rules", "[in French]", False, REPO + "/blob/main/Docs/MesRegles.md", "Atelier Nucléaire crafting rules (French)"),
+    ("Play in the browser", "kureo524.github.io/Manhwadle", True, MANHWADLE, "Play Manhwadle in the browser"),
+    ("Download", "[Windows · macOS · Linux]", False, MANHWADLE_REPO + "/releases/latest", "Download Manhwadle for Windows, macOS or Linux"),
+    ("Source code", "Kureo524/Manhwadle", False, MANHWADLE_REPO, "Manhwadle source code"),
 ], split, cut)
 
 # ---- 3. Projects ----
@@ -366,34 +369,33 @@ tw = cw - 2 * CP
 ch = max(CP + 196 + (len(wrap(p["body"], REG, 20, tw)) - 1) * 30 + 30 + s.status_h(p["role"], tw, 18, lh=26) + CP
          for p in PROJECTS)       # one height for all cards, sized for the longest
 
-# Manhwadle: full-width card above the grid, with a screenshot, linking to the playable web version.
-MANHWADLE = "https://kureo524.github.io/Manhwadle/"
+# Atelier Nucléaire: full-width card above the grid, with a screenshot, linking to the repository.
 mw_top = top + 104
 mw_iw = 440
-mw_ih = round(mw_iw * 556 / 880)
+mw_ih = round(mw_iw * 764 / 1280)
 mw_ix = IX + IW - CP - mw_iw
 mw_tw = mw_ix - IX - 2 * CP
-mw_body = "A daily Wordle-like across five webtoons, with an ORV-style system window UI. Windows, macOS, Linux and web."
-mw_role = "[Electron · GitHub Actions · GitHub Pages]"
+mw_body = "No one-click crafting: grind, smelt, run electrolysis, enrich uranium and drive a fission reactor, all the way to one antimatter pellet."
+mw_role = "[Unity 6.3 LTS · UI Toolkit · 106 tests]"
 # Tall enough for the screenshot and for the text column (same layout as the project cards).
 mw_h = max(mw_ih + 2 * CP, CP + 170 + (len(wrap(mw_body, REG, 20, mw_tw)) - 1) * 30 + 30 + s.status_h(mw_role, mw_tw, 18, lh=26) + CP)
 s.slice("05-projects.svg", 0, cut, W, mw_top - CG // 2 - cut, alt="Projects")
 s.glass(IX, mw_top, IW, mw_h, 18, SURFACE)
 mw_iy = mw_top + (mw_h - mw_ih) // 2
-shot = base64.b64encode(open(os.path.join(HERE, "manhwadle.webp"), "rb").read()).decode()
+shot = base64.b64encode(open(os.path.join(HERE, "atelier.webp"), "rb").read()).decode()
 s.el((mw_ix, mw_iy, mw_iw, mw_ih),
      f'<image href="data:image/webp;base64,{shot}" x="{mw_ix}" y="{mw_iy}" width="{mw_iw}" height="{mw_ih}" '
-     f'preserveAspectRatio="xMidYMid slice" clip-path="url(#mwshot)"/>'
+     f'preserveAspectRatio="xMidYMid slice" clip-path="url(#atshot)"/>'
      f'<rect x="{mw_ix}" y="{mw_iy}" width="{mw_iw}" height="{mw_ih}" rx="12" fill="none" stroke="{BORDER}"/>'
      + s.rim_path(mw_ix, mw_iy, mw_iw, mw_ih, 12, RIM),
-     defs=f'<clipPath id="mwshot"><rect x="{mw_ix}" y="{mw_iy}" width="{mw_iw}" height="{mw_ih}" rx="12"/></clipPath>')
-s.badge(IX + CP, mw_top + CP, "Playable in the browser", SUCCESS)
-s.t(IX + CP - 2, mw_top + CP + 90, "Manhwadle", 40, BOLD, TEXT)
-s.t(IX + CP, mw_top + CP + 128, "Character-guessing game · solo project", 21, REG, ACCENT_TEXT)
+     defs=f'<clipPath id="atshot"><rect x="{mw_ix}" y="{mw_iy}" width="{mw_iw}" height="{mw_ih}" rx="12"/></clipPath>')
+s.badge(IX + CP, mw_top + CP, "Release · Windows / Linux", SUCCESS)
+s.t(IX + CP - 2, mw_top + CP + 90, "Atelier Nucléaire", 40, BOLD, TEXT)
+s.t(IX + CP, mw_top + CP + 128, "Crafting on industrial process chains · solo", 21, REG, ACCENT_TEXT)
 s.para(IX + CP, mw_top + CP + 170, mw_body, 20, mw_tw, 30)
 s.status(IX + CP, mw_top + mw_h - CP - s.status_h(mw_role, mw_tw, 18, lh=26), mw_tw, mw_role, 18, lh=26)
-s.slice("05-manhwadle.svg", 0, mw_top - CG // 2, W, mw_h + CG, MANHWADLE,
-        "Manhwadle — Character-guessing game · solo project. Playable in the browser.")
+s.slice("05-atelier.svg", 0, mw_top - CG // 2, W, mw_h + CG, REPO,
+        "Atelier Nucléaire — Crafting demo on industrial process chains · solo project. Release for Windows and Linux, 106 tests.")
 cards_top = mw_top + mw_h + CG
 for r in range(2):
     ry = cards_top + r * (ch + CG)
