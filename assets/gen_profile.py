@@ -8,7 +8,7 @@ Fonts are embedded as subset WOFF so the slices render the same everywhere.
 Usage, from the repository root (requires fontTools); rewrites the block between the profile markers
 in README.md:
     python3 assets/gen_profile.py"""
-import base64, io, os, random
+import base64, hashlib, io, os, random
 from fontTools.ttLib import TTFont
 from fontTools import subset
 
@@ -234,7 +234,10 @@ class Scene:
         out = []
         for name, x, y, w, h, link, alt in self.slices:
             pct = f"{100 * w / self.w:.3f}".rstrip("0").rstrip(".") + "%"
-            img = f'<img src="assets/profile/{name}" alt="{esc(alt)}" width="{pct}" align="top">'
+            # Content hash in the URL: browsers and GitHub's image cache keep a file for a while under the same
+            # URL, so a changed slice gets a new URL and shows up as soon as the README is updated.
+            digest = hashlib.sha1(open(os.path.join(OUT, name), "rb").read()).hexdigest()[:8]
+            img = f'<img src="assets/profile/{name}?v={digest}" alt="{esc(alt)}" width="{pct}" align="top">'
             out.append(f'<a href="{link}">{img}</a>' if link else img)
         return "".join(out)
 
