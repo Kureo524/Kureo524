@@ -270,12 +270,12 @@ def title(top, text, right=None):
 
 # ---- 1. Hero ----
 top = M
-s.t(IX, top + 64, "Game developer · Bordeaux, France", 21, REG, TEXT3)
-s.t(W - IX, top + 64, "[Status: open to opportunities]", 19, MONO, ACCENT_TEXT, anchor="end")
+s.t(IX, top + 64, "Software & game developer · Bordeaux, France", 21, REG, TEXT3)
+s.t(W - IX, top + 64, "[Status: open to internships]", 19, MONO, ACCENT_TEXT, anchor="end")
 s.t(IX - 3, top + 150, "Kilian Monnier", 80, BOLD, TEXT)
-s.t(IX, top + 200, "C# and C++ with Unity and Unreal Engine.", 24, REG, TEXT2)
-s.t(IX, top + 234, "Clean architecture, gameplay systems and multiplayer infrastructure.", 24, REG, TEXT2)
-s.status(IX, top + 266, 720, "[A new project has been released: Atelier Nucléaire.]", 20)
+s.t(IX, top + 200, "C# and C++: tools, gameplay systems and AI-assisted development.", 24, REG, TEXT2)
+s.t(IX, top + 234, "Clean architecture, tested code, projects shipped to the end.", 24, REG, TEXT2)
+s.status(IX, top + 266, 720, "[Looking for a 6-month internship in 2027.]", 20)
 # Lavender constellation, its links slowly breathing (~16 s).
 stars = [(850, 152), (940, 118), (1050, 142), (1110, 230), (1020, 300), (900, 286), (978, 212)]
 for a, b in [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0), (1, 6), (6, 4)]:
@@ -290,8 +290,8 @@ split = top + 360
 bottom = split + 8 + 86 + PAD
 s.panel(top, bottom)
 s.slice("01-hero.svg", 0, 0, W, split,
-        alt="Kilian Monnier — Game developer in Bordeaux. C# and C++ with Unity and Unreal Engine: clean architecture, "
-            "gameplay systems and multiplayer infrastructure.")
+        alt="Kilian Monnier — Software and game developer in Bordeaux, looking for a 6-month internship in 2027. C# and C++: "
+            "tools, gameplay systems and AI-assisted development; clean architecture and tested code.")
 cut = bottom + GAP // 2
 button_row("02-hero-btn", split + 8, [
     ("Download my CV", "[CV-Monnier-Kilian.pdf]", True, CV, "Download my CV (PDF)"),
@@ -342,21 +342,21 @@ button_row("04-featured-btn", split + 8, [
 
 # ---- 3. Projects ----
 PROJECTS = [
+    dict(title="Forge Studio", genre="Unity editor tools · solo", badge=("Source coming soon", ACCENT),
+         body="A tool suite so designers build a whole dungeon crawler without code: data editing, validation before saving, dashboards and charts.",
+         role="[UI Toolkit · validation · 126 tests]", link=None),
+    dict(title="Aegis", genre="Horde survival, MOBA controls · solo", badge=("Release v0.4", SUCCESS),
+         body="Two champions, 68 items, 43 augments, waves and a boss. State machines, data-driven content, DI and an EventBus.",
+         role="[Unity 6.3 · VContainer · 212 tests]", link="https://github.com/Kureo524/Aegis/releases/latest"),
+    dict(title="PokyLite", genre="Multiplayer monster-battler · for Steam", badge=("In development · private", ACCENT),
+         body="Server-authoritative netcode, a pure C# battle engine covered by unit tests, an ASP.NET Core + PostgreSQL backend.",
+         role="[Unity 6 · FishNet · ~450 tests]", link=None),
     dict(title="Taille and Retry", genre="Puzzle-platformer · game jam", badge=("Best Gameplay award", WARNING),
          body="The level itself stretches and compresses. Made in a team for the La Horde Winter Game Jam 2025.",
          role="[Role: deformation mechanic, movement, menus.]", link="https://github.com/theo-bsl/Taille"),
-    dict(title="Escave", genre="2D precision platformer · team of 8", badge=("Published on itch.io", SUCCESS),
-         body="Celeste-inspired controls with coyote time and input buffering, a grappling hook, ice axes and a living cave.",
-         role="[Role: wall grab and wall jump, main menu, saves.]", link="https://lucasdrpx.itch.io/escave"),
-    dict(title="Punk Pulse", genre="Rhythm action game", badge=("Playable on itch.io", SUCCESS),
-         body="Collect melodies, fuse them into new ones and play them from the hotbar. The Melody Codex keeps track of them all.",
-         role="[Role: melodies, Melody Codex, fusion, hotbar.]", link="https://lawice2.itch.io/punk-pulse"),
-    dict(title="PokyLite", genre="Multiplayer monster-battler · for Steam", badge=("In development · private", ACCENT),
-         body="Server-authoritative netcode, a pure C# battle engine covered by unit tests, an ASP.NET Core + PostgreSQL backend.",
-         role="[Unity 6 · URP · FishNet · ASP.NET Core]", link=None),
 ]
 top = bottom + GAP
-title(top, "Projects", "Team projects, game jams and work in progress")
+title(top, "Projects", "Tools, games and work in progress")
 CP, CG = 30, 16                    # card padding, gap between cards
 cw = (IW - CG) / 2
 tw = cw - 2 * CP
@@ -406,7 +406,7 @@ for r in range(2):
         s.slice(f"06-card{r * 2 + c + 1}.svg", c * W // 2, ry - CG // 2, W // 2, ch + CG, p["link"],
                 f'{p["title"]} — {p["genre"]}. {p["badge"][0]}.')
 cut = cards_top + 2 * ch + CG + CG // 2
-end = s.status(IX, cut + 10, IW, "[Also in development: Tower of the Apocalypse, a data-driven turn-based mobile RPG in Unity 6.]")
+end = s.status(IX, cut + 10, IW, "[Also: Escave (team of 8) and Punk Pulse, playable on itch.io. In development: Tower of the Apocalypse.]")
 bottom = end + PAD
 s.panel(top, bottom)
 
@@ -414,10 +414,10 @@ s.panel(top, bottom)
 top = bottom + GAP
 title(top, "Toolbox")
 cols = [
-    ("Languages", [("C#", ACCENT), ("C++", ACCENT)]),
-    ("Engines", [("Unity 6 · URP", ACCENT), ("Unreal Engine", LAVENDER), ("UI Toolkit", ACCENT)]),
-    ("Multiplayer, backend", [("FishNet", SUCCESS), ("ASP.NET Core", LAVENDER), ("PostgreSQL", LAVENDER)]),
-    ("Practices", [("Server-authoritative", SUCCESS), ("Data-driven design", ACCENT), ("Unit testing", SUCCESS), ("DI · EventBus", LAVENDER)]),
+    ("Languages", [("C#", ACCENT), ("C++", ACCENT), ("JavaScript", LAVENDER)]),
+    ("Engines, tools", [("Unity 6 · URP", ACCENT), ("UI Toolkit", ACCENT), ("Unreal Engine", LAVENDER), ("Electron", LAVENDER)]),
+    ("Backend, delivery", [("ASP.NET Core", LAVENDER), ("PostgreSQL", LAVENDER), ("FishNet", SUCCESS), ("GitHub Actions", SUCCESS)]),
+    ("Practices", [("Unit testing", SUCCESS), ("Data-driven design", ACCENT), ("DI · EventBus", LAVENDER), ("AI-assisted dev", SUCCESS)]),
 ]
 colw = IW / 4
 for i, (name, items) in enumerate(cols):
@@ -433,8 +433,9 @@ s.t(W / 2, bottom + 66, "[Thanks for reading this far. Your visit has been recor
     ACCENT_TEXT, anchor="middle")
 s.h = bottom + 116
 s.slice("07-end.svg", 0, cut, W, s.h - cut,
-        alt="Also in development: Tower of the Apocalypse. Toolbox: C#, C++, Unity 6 with URP and UI Toolkit, Unreal Engine, "
-            "FishNet, ASP.NET Core, PostgreSQL; server-authoritative architecture, data-driven design, unit testing, DI and EventBus.")
+        alt="Also: Escave and Punk Pulse on itch.io; Tower of the Apocalypse in development. Toolbox: C#, C++, JavaScript, "
+            "Unity 6 with URP and UI Toolkit, Unreal Engine, Electron, ASP.NET Core, PostgreSQL, FishNet, GitHub Actions; "
+            "unit testing, data-driven design, DI and EventBus, AI-assisted development.")
 
 H = s.h
 s.sky([(150, 130, 560, ACCENT, 0.31), (1060, 90, 460, LAVENDER, 0.25), (700, 900, 560, SUCCESS, 0.12),
