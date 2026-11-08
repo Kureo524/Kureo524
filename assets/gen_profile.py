@@ -323,14 +323,15 @@ s.el((ix, cy, iw, ih),
      defs=f'<clipPath id="shot"><rect x="{ix}" y="{cy}" width="{iw}" height="{ih}" rx="18"/></clipPath>')
 lw = ix - IX - 36
 s.t(IX - 2, cy + 46, "Manhwadle", 52, BOLD, TEXT)
-y = s.para(IX, cy + 90, "A daily character-guessing game across five webtoons.", 23, lw, 31, REG, ACCENT_TEXT)
+y = s.para(IX, cy + 90, "A daily character-guessing game across twelve webtoons.", 23, lw, 31, REG, ACCENT_TEXT)
 y = s.para(IX, y + 44, "Each guess is compared to the mystery character in 9 categories, while the constellations "
-                   "comment on your run. Desktop app, browser version and installable on mobile.",
+                   "comment on your run. Every character has a difficulty rank, and the web novels can join "
+                   "Infinite mode. Desktop app, browser version and installable on mobile.",
        20, lw, 30)
 msg = "[Clear condition: identify the mystery incarnation.]"
 y = s.status(IX, max(y + 28, cy + ih - s.status_h(msg, lw)), lw, msg)
 sy = max(y, cy + ih) + 76
-for i, (v, l, c) in enumerate((("107", "characters", TEXT), ("5", "webtoons", TEXT),
+for i, (v, l, c) in enumerate((("1,063", "characters", TEXT), ("12", "webtoons", TEXT),
                                 ("4", "platforms", SUCCESS))):
     s.stat(IX + i * 210, sy, v, l, c)
 s.t(W - IX, sy + 30, "Electron · GitHub Actions · Cloudflare", 18, MONO, TEXT3, anchor="end")
@@ -338,7 +339,7 @@ split = sy + 66
 bottom = split + 8 + 86 + PAD
 s.panel(top, bottom)
 s.slice("03-featured.svg", 0, cut, W, split - cut, MANHWADLE,
-        "Featured project: Manhwadle, a daily character-guessing game across five webtoons. 107 characters, "
+        "Featured project: Manhwadle, a daily character-guessing game across twelve webtoons. 1,063 characters, "
         "Windows, macOS, Linux and web; Electron, GitHub Actions, Cloudflare.")
 prev, cut = cut, bottom + GAP // 2
 button_row("04-featured-btn", split + 8, [
